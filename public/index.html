@@ -486,8 +486,9 @@
   <!-- Error Toast -->
   <div id="error-toast" class="error-toast"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/dist/index.js"></script>
-  <script>
+  <script type="module">
+    import { RetellWebClient } from "https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/+esm";
+
     (function () {
       // State
       let personas = [];
