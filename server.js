@@ -88,6 +88,16 @@ app.post("/api/create-call", async (req, res) => {
   }
 });
 
+// POST /api/clear-cache — clear agent cache so new prompts take effect
+app.post("/api/clear-cache", (req, res) => {
+  const count = Object.keys(agentCache).length;
+  for (const key of Object.keys(agentCache)) {
+    delete agentCache[key];
+  }
+  console.log(`Cleared agent cache (${count} entries)`);
+  res.json({ cleared: count });
+});
+
 // GET /api/call/:callId — fetch call details for post-call feedback
 app.get("/api/call/:callId", async (req, res) => {
   try {

@@ -266,7 +266,6 @@
       border-radius: 8px;
       font-size: 15px;
       line-height: 1.6;
-      white-space: pre-wrap;
     }
     .feedback-result.success {
       background: #F0FFF4;
@@ -277,6 +276,26 @@
       background: #FFF5F5;
       border: 1px solid #FED7D7;
       color: #742A2A;
+    }
+    .feedback-label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+      opacity: 0.7;
+    }
+    .feedback-section {
+      margin-bottom: 12px;
+    }
+    .feedback-section:last-child {
+      margin-bottom: 0;
+    }
+    .feedback-section p {
+      margin: 0;
+    }
+    .feedback-highlight {
+      font-weight: 600;
     }
 
     .transcript-toggle {
@@ -700,47 +719,136 @@
         // Extract TRAINING FEEDBACK from transcript
         let feedbackText = "";
         let isSuccess = false;
-        let transcriptText = "";
+        let transcriptHtml = "";
 
         if (typeof transcript === "string") {
-          transcriptText = transcript;
           const feedbackMatch = transcript.match(/TRAINING FEEDBACK:\s*([\s\S]*?)$/);
-          if (feedbackMatch) {
-            feedbackText = feedbackMatch[1].trim();
-          }
+          if (feedbackMatch) feedbackText = feedbackMatch[1].trim();
+          transcriptHtml = `<div class="transcript-line">${escapeHtml(transcript)}</div>`;
         } else if (Array.isArray(transcript)) {
-          // Retell returns array of { role, content }
           const lines = [];
           transcript.forEach((entry) => {
             const role = entry.role === "agent" ? "Client" : "Agent";
-            lines.push(`<div class="transcript-line"><span class="transcript-role">${role}:</span> ${escapeHtml(entry.content)}</div>`);
-
-            if (entry.content && entry.content.includes("TRAINING FEEDBACK:")) {
-              const match = entry.content.match(/TRAINING FEEDBACK:\s*([\s\S]*?)$/);
+            const content = entry.content || "";
+            lines.push(`<div class="transcript-line"><span class="transcript-role">${role}:</span> ${escapeHtml(content)}</div>`);
+            if (content.includes("TRAINING FEEDBACK:")) {
+              const match = content.match(/TRAINING FEEDBACK:\s*([\s\S]*?)$/);
               if (match) feedbackText = match[1].trim();
             }
           });
-          transcriptText = lines.join("");
+          transcriptHtml = lines.join("");
         }
 
         if (!feedbackText) {
-          feedbackText = "The call ended. No structured feedback was provided by the training persona. This may happen if the call was very short or disconnected early.";
+          feedbackText = "The call ended before the training persona could provide structured feedback. This may happen if the call was very short or disconnected early. Try again and stay on the call long enough for the persona to respond.";
         }
 
         isSuccess = feedbackText.toLowerCase().includes("excellent work") ||
                     feedbackText.toLowerCase().includes("successfully completed");
 
         feedbackResult.className = `feedback-result ${isSuccess ? "success" : "failure"}`;
-        feedbackResult.textContent = feedbackText;
+        feedbackResult.innerHTML = formatFeedback(feedbackText, isSuccess);
 
         // Transcript
-        if (typeof transcript === "string" && transcript) {
-          transcriptBody.innerHTML = `<div class="transcript-line">${escapeHtml(transcript)}</div>`;
-        } else if (typeof transcriptText === "string" && transcriptText.includes("transcript-line")) {
-          transcriptBody.innerHTML = transcriptText;
-        } else {
-          transcriptBody.innerHTML = '<div class="transcript-line" style="color:var(--gray-400)">No transcript available.</div>';
+        transcriptBody.innerHTML = transcriptHtml ||
+          '<div class="transcript-line" style="color:var(--gray-400)">No transcript available.</div>';
+      }
+
+      function formatFeedback(text, isSuccess) {
+        if (isSuccess) {
+          return `<div class="feedback-section">
+            <div class="feedback-label">Result</div>
+            <p class="feedback-highlight">Call Completed Successfully</p>
+          </div>
+          <div class="feedback-section">
+            <p>${escapeHtml(text)}</p>
+          </div>`;
         }
+
+        // Parse structured failure feedback
+        const parts = {};
+
+        // Extract violation type (first sentence/phrase before period)
+        const violationMatch = text.match(/^([A-Z_ ]+)\./);
+        if (violationMatch) parts.violation = violationMatch[1].trim();
+
+        // Extract "The agent was on Section X..."
+        const sectionMatch = text.match(/agent was on Section (\d+)\s*\(([^)]+)\)/i);
+        if (sectionMatch) {
+          parts.lastSection = sectionMatch[1];
+          parts.lastSectionName = sectionMatch[2];
+        }
+
+        // Extract "violated the structure by..."
+        const violatedMatch = text.match(/violated the structure by ([^.]+\.)/i);
+        if (violatedMatch) parts.whatWentWrong = violatedMatch[1].trim();
+
+        // Extract "The correct approach: ..."
+        const correctMatch = text.match(/correct approach:\s*([^.]+\.(?:\s*[^.]+\.)?)/i);
+        if (correctMatch) parts.correctApproach = correctMatch[1].trim();
+
+        // Extract "Section to review: ..."
+        const reviewMatch = text.match(/Section to review:\s*Section (\d+)\s*(?:—|[-–])\s*([^.]+)/i);
+        if (reviewMatch) {
+          parts.reviewSection = reviewMatch[1];
+          parts.reviewSectionName = reviewMatch[2].trim();
+        }
+
+        // Extract "Key takeaway: ..."
+        const takeawayMatch = text.match(/Key takeaway:\s*([^.]+\.?)/i);
+        if (takeawayMatch) parts.takeaway = takeawayMatch[1].trim();
+
+        // If we got structured parts, render nicely
+        if (parts.whatWentWrong || parts.reviewSection) {
+          let html = "";
+
+          if (parts.violation) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">Violation</div>
+              <p class="feedback-highlight">${escapeHtml(parts.violation.replace(/_/g, " "))}</p>
+            </div>`;
+          }
+
+          if (parts.whatWentWrong) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">What Went Wrong</div>
+              <p>${escapeHtml(parts.whatWentWrong)}</p>
+            </div>`;
+          }
+
+          if (parts.lastSection) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">Last Correct Section</div>
+              <p>Section ${escapeHtml(parts.lastSection)} — ${escapeHtml(parts.lastSectionName)}</p>
+            </div>`;
+          }
+
+          if (parts.correctApproach) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">What You Should Have Done</div>
+              <p>${escapeHtml(parts.correctApproach)}</p>
+            </div>`;
+          }
+
+          if (parts.reviewSection) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">Section to Study</div>
+              <p class="feedback-highlight">Section ${escapeHtml(parts.reviewSection)} — ${escapeHtml(parts.reviewSectionName)}</p>
+            </div>`;
+          }
+
+          if (parts.takeaway) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">Key Takeaway</div>
+              <p>${escapeHtml(parts.takeaway)}</p>
+            </div>`;
+          }
+
+          return html;
+        }
+
+        // Fallback: just show the raw text
+        return `<div class="feedback-section"><p>${escapeHtml(text)}</p></div>`;
       }
 
       // Transcript toggle
