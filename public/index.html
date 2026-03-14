@@ -615,6 +615,7 @@
         pulseRing.className = "pulse-ring";
         micPulse.className = "mic-pulse";
         lastTranscript = "";
+        feedbackDetected = false;
       }
 
       async function connectRetellCall(accessToken) {
@@ -652,6 +653,8 @@
         retellWebClient.on("update", (update) => {
           if (update.transcript) {
             lastTranscript = update.transcript;
+            // Auto-end call when persona delivers training feedback
+            detectFeedbackAndEndCall(update.transcript);
           }
         });
 
@@ -686,6 +689,29 @@
         callTimerInterval = null;
       }
 
+      let feedbackDetected = false;
+
+      function detectFeedbackAndEndCall(transcript) {
+        if (feedbackDetected) return;
+
+        let fullText = "";
+        if (typeof transcript === "string") {
+          fullText = transcript;
+        } else if (Array.isArray(transcript)) {
+          fullText = transcript.map((e) => e.content || "").join(" ");
+        }
+
+        if (fullText.includes("TRAINING FEEDBACK:")) {
+          feedbackDetected = true;
+          // Brief delay to let the full feedback text stream in
+          setTimeout(() => {
+            if (retellWebClient) {
+              retellWebClient.stopCall();
+            }
+          }, 2000);
+        }
+      }
+
       btnEnd.addEventListener("click", () => {
         if (retellWebClient) {
           retellWebClient.stopCall();
@@ -716,26 +742,33 @@
       }
 
       function displayFeedback(transcript) {
-        // Extract TRAINING FEEDBACK from transcript
         let feedbackText = "";
-        let isSuccess = false;
         let transcriptHtml = "";
 
         if (typeof transcript === "string") {
-          const feedbackMatch = transcript.match(/TRAINING FEEDBACK:\s*([\s\S]*?)$/);
-          if (feedbackMatch) feedbackText = feedbackMatch[1].trim();
+          const match = transcript.match(/TRAINING FEEDBACK:\s*([\s\S]*?)$/);
+          if (match) feedbackText = match[1].trim();
           transcriptHtml = `<div class="transcript-line">${escapeHtml(transcript)}</div>`;
         } else if (Array.isArray(transcript)) {
           const lines = [];
+          // Collect ALL text after TRAINING FEEDBACK across multiple transcript entries
+          let collectingFeedback = false;
+          let feedbackParts = [];
           transcript.forEach((entry) => {
             const role = entry.role === "agent" ? "Client" : "Agent";
             const content = entry.content || "";
             lines.push(`<div class="transcript-line"><span class="transcript-role">${role}:</span> ${escapeHtml(content)}</div>`);
             if (content.includes("TRAINING FEEDBACK:")) {
+              collectingFeedback = true;
               const match = content.match(/TRAINING FEEDBACK:\s*([\s\S]*?)$/);
-              if (match) feedbackText = match[1].trim();
+              if (match) feedbackParts.push(match[1].trim());
+            } else if (collectingFeedback && entry.role === "agent") {
+              feedbackParts.push(content.trim());
             }
           });
+          if (feedbackParts.length > 0) {
+            feedbackText = feedbackParts.join(" ");
+          }
           transcriptHtml = lines.join("");
         }
 
@@ -743,111 +776,115 @@
           feedbackText = "The call ended before the training persona could provide structured feedback. This may happen if the call was very short or disconnected early. Try again and stay on the call long enough for the persona to respond.";
         }
 
-        isSuccess = feedbackText.toLowerCase().includes("excellent work") ||
-                    feedbackText.toLowerCase().includes("successfully completed");
+        const isSuccess = /NONE|SUCCESSFULLY|EXCELLENT/i.test(feedbackText);
 
         feedbackResult.className = `feedback-result ${isSuccess ? "success" : "failure"}`;
         feedbackResult.innerHTML = formatFeedback(feedbackText, isSuccess);
 
-        // Transcript
         transcriptBody.innerHTML = transcriptHtml ||
           '<div class="transcript-line" style="color:var(--gray-400)">No transcript available.</div>';
       }
 
       function formatFeedback(text, isSuccess) {
+        // Parse labeled fields: VIOLATION:, WHAT HAPPENED:, EXPECTED NEXT STEP:, SECTION TO REVIEW:, KEY TAKEAWAY:
+        const fields = {};
+        const fieldPatterns = [
+          { key: "violation", pattern: /VIOLATION:\s*(.*?)(?=\s*(?:WHAT HAPPENED:|$))/si },
+          { key: "whatHappened", pattern: /WHAT HAPPENED:\s*(.*?)(?=\s*(?:EXPECTED NEXT STEP:|$))/si },
+          { key: "expectedStep", pattern: /EXPECTED NEXT STEP:\s*(.*?)(?=\s*(?:SECTION TO REVIEW:|$))/si },
+          { key: "sectionToReview", pattern: /SECTION TO REVIEW:\s*(.*?)(?=\s*(?:KEY TAKEAWAY:|$))/si },
+          { key: "takeaway", pattern: /KEY TAKEAWAY:\s*(.*?)$/si },
+        ];
+
+        for (const { key, pattern } of fieldPatterns) {
+          const match = text.match(pattern);
+          if (match) fields[key] = match[1].trim();
+        }
+
+        // Also try the older single-line format as fallback
+        if (!fields.whatHappened) {
+          const agentMatch = text.match(/agent was on Section (\d+)\s*\(([^)]+)\)\s*and\s*(.*?)(?=\.\s*(?:The correct|Expected|Section to))/si);
+          if (agentMatch) {
+            fields.whatHappened = `The agent was on Section ${agentMatch[1]} (${agentMatch[2]}) and ${agentMatch[3]}.`;
+          }
+        }
+        if (!fields.sectionToReview) {
+          const revMatch = text.match(/Section to review:\s*Section (\d+)\s*(?:—|[-–])\s*([^\n.]+)/i);
+          if (revMatch) fields.sectionToReview = `Section ${revMatch[1]} — ${revMatch[2].trim()}`;
+        }
+        if (!fields.takeaway && !fields.whatHappened) {
+          // No structured fields found at all — try to extract violation type
+          const violMatch = text.match(/^([A-Z_ ]+)/);
+          if (violMatch) fields.violation = violMatch[1].trim();
+        }
+
+        const hasStructuredData = fields.whatHappened || fields.expectedStep || fields.sectionToReview;
+
         if (isSuccess) {
-          return `<div class="feedback-section">
+          let html = `<div class="feedback-section">
             <div class="feedback-label">Result</div>
-            <p class="feedback-highlight">Call Completed Successfully</p>
-          </div>
-          <div class="feedback-section">
-            <p>${escapeHtml(text)}</p>
+            <p class="feedback-highlight" style="color:var(--green);">Call Completed Successfully</p>
           </div>`;
-        }
-
-        // Parse structured failure feedback
-        const parts = {};
-
-        // Extract violation type (first sentence/phrase before period)
-        const violationMatch = text.match(/^([A-Z_ ]+)\./);
-        if (violationMatch) parts.violation = violationMatch[1].trim();
-
-        // Extract "The agent was on Section X..."
-        const sectionMatch = text.match(/agent was on Section (\d+)\s*\(([^)]+)\)/i);
-        if (sectionMatch) {
-          parts.lastSection = sectionMatch[1];
-          parts.lastSectionName = sectionMatch[2];
-        }
-
-        // Extract "violated the structure by..."
-        const violatedMatch = text.match(/violated the structure by ([^.]+\.)/i);
-        if (violatedMatch) parts.whatWentWrong = violatedMatch[1].trim();
-
-        // Extract "The correct approach: ..."
-        const correctMatch = text.match(/correct approach:\s*([^.]+\.(?:\s*[^.]+\.)?)/i);
-        if (correctMatch) parts.correctApproach = correctMatch[1].trim();
-
-        // Extract "Section to review: ..."
-        const reviewMatch = text.match(/Section to review:\s*Section (\d+)\s*(?:—|[-–])\s*([^.]+)/i);
-        if (reviewMatch) {
-          parts.reviewSection = reviewMatch[1];
-          parts.reviewSectionName = reviewMatch[2].trim();
-        }
-
-        // Extract "Key takeaway: ..."
-        const takeawayMatch = text.match(/Key takeaway:\s*([^.]+\.?)/i);
-        if (takeawayMatch) parts.takeaway = takeawayMatch[1].trim();
-
-        // If we got structured parts, render nicely
-        if (parts.whatWentWrong || parts.reviewSection) {
-          let html = "";
-
-          if (parts.violation) {
+          if (fields.sectionToReview) {
             html += `<div class="feedback-section">
-              <div class="feedback-label">Violation</div>
-              <p class="feedback-highlight">${escapeHtml(parts.violation.replace(/_/g, " "))}</p>
+              <div class="feedback-label">Strengths</div>
+              <p>${escapeHtml(fields.sectionToReview)}</p>
             </div>`;
           }
-
-          if (parts.whatWentWrong) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">What Went Wrong</div>
-              <p>${escapeHtml(parts.whatWentWrong)}</p>
-            </div>`;
-          }
-
-          if (parts.lastSection) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">Last Correct Section</div>
-              <p>Section ${escapeHtml(parts.lastSection)} — ${escapeHtml(parts.lastSectionName)}</p>
-            </div>`;
-          }
-
-          if (parts.correctApproach) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">What You Should Have Done</div>
-              <p>${escapeHtml(parts.correctApproach)}</p>
-            </div>`;
-          }
-
-          if (parts.reviewSection) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">Section to Study</div>
-              <p class="feedback-highlight">Section ${escapeHtml(parts.reviewSection)} — ${escapeHtml(parts.reviewSectionName)}</p>
-            </div>`;
-          }
-
-          if (parts.takeaway) {
+          if (fields.takeaway) {
             html += `<div class="feedback-section">
               <div class="feedback-label">Key Takeaway</div>
-              <p>${escapeHtml(parts.takeaway)}</p>
+              <p>${escapeHtml(fields.takeaway)}</p>
+            </div>`;
+          }
+          if (!fields.sectionToReview && !fields.takeaway) {
+            html += `<div class="feedback-section"><p>${escapeHtml(text)}</p></div>`;
+          }
+          return html;
+        }
+
+        if (hasStructuredData) {
+          let html = "";
+
+          if (fields.violation) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">Violation Type</div>
+              <p class="feedback-highlight">${escapeHtml(fields.violation.replace(/_/g, " "))}</p>
+            </div>`;
+          }
+
+          if (fields.whatHappened) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">What Went Wrong</div>
+              <p>${escapeHtml(fields.whatHappened)}</p>
+            </div>`;
+          }
+
+          if (fields.expectedStep) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">What You Should Have Done</div>
+              <p>${escapeHtml(fields.expectedStep)}</p>
+            </div>`;
+          }
+
+          if (fields.sectionToReview) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">Section to Study</div>
+              <p class="feedback-highlight">${escapeHtml(fields.sectionToReview)}</p>
+            </div>`;
+          }
+
+          if (fields.takeaway) {
+            html += `<div class="feedback-section">
+              <div class="feedback-label">Key Takeaway</div>
+              <p>${escapeHtml(fields.takeaway)}</p>
             </div>`;
           }
 
           return html;
         }
 
-        // Fallback: just show the raw text
+        // Fallback: raw text
         return `<div class="feedback-section"><p>${escapeHtml(text)}</p></div>`;
       }
 
