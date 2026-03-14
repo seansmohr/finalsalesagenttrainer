@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mohr Insurance — Sales Training Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #1B2A4A;
+      --blue: #3A6EA5;
+      --gold: #D4A843;
+      --bg: #F8F9FB;
+      --white: #FFFFFF;
+      --gray-100: #F1F3F5;
+      --gray-200: #E2E6EA;
+      --gray-400: #8C939A;
+      --gray-600: #4A5568;
+      --red: #E53E3E;
+      --green: #38A169;
+      --radius: 12px;
+      --shadow: 0 2px 8px rgba(27,42,74,0.08);
+      --shadow-lg: 0 4px 20px rgba(27,42,74,0.12);
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--navy);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--navy);
+      color: var(--white);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-brand {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .header-brand span { color: var(--gold); }
+    .header-subtitle {
+      font-size: 14px;
+      font-weight: 400;
+      opacity: 0.8;
+    }
+
+    /* Screens */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* Screen 1: Persona Selection */
+    .select-heading {
+      text-align: center;
+      padding: 40px 24px 8px;
+    }
+    .select-heading h1 {
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .select-heading p {
+      color: var(--gray-600);
+      margin-top: 6px;
+      font-size: 15px;
+    }
+    .persona-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .persona-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      border: 2px solid transparent;
+    }
+    .persona-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--blue);
+    }
+    .persona-card-top {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+    .persona-avatar {
+      font-size: 40px;
+      line-height: 1;
+    }
+    .persona-name {
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .persona-age {
+      display: inline-block;
+      background: var(--gray-100);
+      color: var(--gray-600);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-top: 2px;
+    }
+    .persona-tagline {
+      font-size: 14px;
+      color: var(--gray-600);
+      line-height: 1.4;
+    }
+
+    /* Screen 2: Active Call */
+    .call-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 60px);
+      padding: 40px 24px;
+      text-align: center;
+    }
+    .call-persona-avatar {
+      font-size: 64px;
+      margin-bottom: 8px;
+      position: relative;
+      display: inline-block;
+    }
+    .pulse-ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: 3px solid var(--blue);
+      opacity: 0;
+      z-index: -1;
+    }
+    .pulse-ring.active {
+      animation: pulse 1.8s ease-out infinite;
+    }
+    .pulse-ring.talking {
+      border-color: var(--green);
+      animation: pulse 1.2s ease-out infinite;
+    }
+    @keyframes pulse {
+      0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
+      100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+    }
+    .call-persona-name {
+      font-size: 22px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .call-persona-tagline {
+      font-size: 14px;
+      color: var(--gray-600);
+      margin-bottom: 24px;
+    }
+
+    .call-mic {
+      width: 80px;
+      height: 80px;
+      background: var(--gray-100);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      position: relative;
+    }
+    .call-mic svg {
+      width: 32px;
+      height: 32px;
+      fill: var(--navy);
+    }
+    .call-mic .mic-pulse {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      border-radius: 50%;
+      border: 3px solid var(--blue);
+      opacity: 0;
+    }
+    .call-mic .mic-pulse.active {
+      animation: pulse 1.8s ease-out infinite;
+    }
+    .call-mic .mic-pulse.talking {
+      border-color: var(--green);
+      animation: pulse 1.2s ease-out infinite;
+    }
+
+    .call-status {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .call-status.connecting { color: var(--gold); }
+    .call-status.active-call { color: var(--green); }
+    .call-status.ended { color: var(--gray-400); }
+
+    .call-timer {
+      font-size: 32px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 32px;
+      color: var(--navy);
+    }
+
+    .btn-end-call {
+      background: var(--red);
+      color: var(--white);
+      border: none;
+      padding: 14px 40px;
+      border-radius: 40px;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-end-call:hover { background: #C53030; }
+    .btn-end-call:disabled {
+      background: var(--gray-200);
+      color: var(--gray-400);
+      cursor: not-allowed;
+    }
+
+    /* Screen 3: Feedback */
+    .feedback-screen {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+    .feedback-heading {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .feedback-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .feedback-result {
+      padding: 16px;
+      border-radius: 8px;
+      font-size: 15px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .feedback-result.success {
+      background: #F0FFF4;
+      border: 1px solid #C6F6D5;
+      color: #22543D;
+    }
+    .feedback-result.failure {
+      background: #FFF5F5;
+      border: 1px solid #FED7D7;
+      color: #742A2A;
+    }
+
+    .transcript-toggle {
+      background: none;
+      border: 1px solid var(--gray-200);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      color: var(--navy);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .transcript-toggle:hover { background: var(--gray-100); }
+    .transcript-body {
+      display: none;
+      margin-top: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 12px;
+      background: var(--gray-100);
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .transcript-body.open { display: block; }
+    .transcript-line { margin-bottom: 8px; }
+    .transcript-role {
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .cooldown-section {
+      text-align: center;
+      margin-top: 24px;
+    }
+    .cooldown-timer {
+      font-size: 40px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--navy);
+      margin-bottom: 8px;
+    }
+    .cooldown-tip {
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      color: #92400E;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 16px 0;
+    }
+    .btn-try-again {
+      background: var(--blue);
+      color: var(--white);
+      border: none;
+      padding: 14px 40px;
+      border-radius: 40px;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-try-again:hover { background: #2D5A8E; }
+    .btn-try-again:disabled {
+      background: var(--gray-200);
+      color: var(--gray-400);
+      cursor: not-allowed;
+    }
+
+    /* Loading overlay */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(27,42,74,0.5);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .loading-overlay.active { display: flex; }
+    .loading-box {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      text-align: center;
+      box-shadow: var(--shadow-lg);
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--gray-200);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error toast */
+    .error-toast {
+      display: none;
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--red);
+      color: var(--white);
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 200;
+      box-shadow: var(--shadow-lg);
+    }
+    .error-toast.show { display: block; }
+
+    @media (max-width: 640px) {
+      .persona-grid { grid-template-columns: 1fr; padding: 16px; gap: 12px; }
+      .call-timer { font-size: 28px; }
+      .feedback-screen { padding: 24px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div class="header-brand"><span>Mohr</span> Insurance</div>
+    </div>
+    <div class="header-subtitle">Sales Training Simulator</div>
+  </div>
+
+  <!-- Screen 1: Persona Selection -->
+  <div id="screen-select" class="screen active">
+    <div class="select-heading">
+      <h1>Choose a Client</h1>
+      <p>Select a persona to start your training call</p>
+    </div>
+    <div id="persona-grid" class="persona-grid"></div>
+  </div>
+
+  <!-- Screen 2: Active Call -->
+  <div id="screen-call" class="screen">
+    <div class="call-screen">
+      <div class="call-persona-avatar">
+        <span id="call-avatar"></span>
+        <div id="pulse-ring" class="pulse-ring"></div>
+      </div>
+      <div id="call-name" class="call-persona-name"></div>
+      <div id="call-tagline" class="call-persona-tagline"></div>
+
+      <div class="call-mic">
+        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+        <div id="mic-pulse" class="mic-pulse"></div>
+      </div>
+
+      <div id="call-status" class="call-status connecting">Connecting...</div>
+      <div id="call-timer" class="call-timer">0:00</div>
+      <button id="btn-end" class="btn-end-call" disabled>End Call</button>
+    </div>
+  </div>
+
+  <!-- Screen 3: Post-Call Feedback -->
+  <div id="screen-feedback" class="screen">
+    <div class="feedback-screen">
+      <div class="feedback-heading">Call Results</div>
+
+      <div class="feedback-card">
+        <div id="feedback-result" class="feedback-result"></div>
+      </div>
+
+      <div class="feedback-card">
+        <button id="transcript-toggle" class="transcript-toggle">
+          <span>View Transcript</span>
+          <span id="toggle-arrow">&#9654;</span>
+        </button>
+        <div id="transcript-body" class="transcript-body"></div>
+      </div>
+
+      <div class="cooldown-section">
+        <div id="cooldown-timer" class="cooldown-timer">2:00</div>
+        <div class="cooldown-tip">
+          <strong>Use this time wisely</strong> — Review the section mentioned in the feedback above. Study the call structure before your next attempt.
+        </div>
+        <button id="btn-try-again" class="btn-try-again" disabled>Try Again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div>Setting up your training call...</div>
+      <div style="font-size:13px;color:var(--gray-400);margin-top:4px;">This may take a moment for new personas</div>
+    </div>
+  </div>
+
+  <!-- Error Toast -->
+  <div id="error-toast" class="error-toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/dist/index.js"></script>
+  <script>
+    (function () {
+      // State
+      let personas = [];
+      let selectedPersona = null;
+      let retellWebClient = null;
+      let callId = null;
+      let callTimerInterval = null;
+      let callStartTime = null;
+      let cooldownInterval = null;
+      let lastTranscript = "";
+
+      // DOM refs
+      const screenSelect = document.getElementById("screen-select");
+      const screenCall = document.getElementById("screen-call");
+      const screenFeedback = document.getElementById("screen-feedback");
+      const personaGrid = document.getElementById("persona-grid");
+      const callAvatar = document.getElementById("call-avatar");
+      const callName = document.getElementById("call-name");
+      const callTagline = document.getElementById("call-tagline");
+      const callStatus = document.getElementById("call-status");
+      const callTimer = document.getElementById("call-timer");
+      const btnEnd = document.getElementById("btn-end");
+      const pulseRing = document.getElementById("pulse-ring");
+      const micPulse = document.getElementById("mic-pulse");
+      const feedbackResult = document.getElementById("feedback-result");
+      const transcriptToggle = document.getElementById("transcript-toggle");
+      const transcriptBody = document.getElementById("transcript-body");
+      const toggleArrow = document.getElementById("toggle-arrow");
+      const cooldownTimerEl = document.getElementById("cooldown-timer");
+      const btnTryAgain = document.getElementById("btn-try-again");
+      const loadingOverlay = document.getElementById("loading-overlay");
+      const errorToast = document.getElementById("error-toast");
+
+      // Init
+      loadPersonas();
+
+      // Functions
+      async function loadPersonas() {
+        try {
+          const res = await fetch("/api/personas");
+          personas = await res.json();
+          renderPersonaGrid();
+        } catch (err) {
+          showError("Failed to load personas. Please refresh.");
+        }
+      }
+
+      function renderPersonaGrid() {
+        personaGrid.innerHTML = "";
+        personas.forEach((p) => {
+          const card = document.createElement("div");
+          card.className = "persona-card";
+          card.innerHTML = `
+            <div class="persona-card-top">
+              <div class="persona-avatar">${p.avatar}</div>
+              <div>
+                <div class="persona-name">${p.name}</div>
+                <div class="persona-age">Age ${p.age}</div>
+              </div>
+            </div>
+            <div class="persona-tagline">${p.tagline}</div>
+          `;
+          card.addEventListener("click", () => startCallFlow(p));
+          personaGrid.appendChild(card);
+        });
+      }
+
+      async function startCallFlow(persona) {
+        selectedPersona = persona;
+        showLoading(true);
+
+        try {
+          const res = await fetch("/api/create-call", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ personaId: persona.id }),
+          });
+
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || "Failed to create call");
+          }
+
+          const data = await res.json();
+          callId = data.call_id;
+
+          showLoading(false);
+          showScreen("call");
+          setupCallUI(persona);
+          await connectRetellCall(data.access_token);
+        } catch (err) {
+          showLoading(false);
+          showError(err.message);
+        }
+      }
+
+      function setupCallUI(persona) {
+        callAvatar.textContent = persona.avatar;
+        callName.textContent = persona.name;
+        callTagline.textContent = persona.tagline;
+        callStatus.textContent = "Connecting...";
+        callStatus.className = "call-status connecting";
+        callTimer.textContent = "0:00";
+        btnEnd.disabled = true;
+        pulseRing.className = "pulse-ring";
+        micPulse.className = "mic-pulse";
+        lastTranscript = "";
+      }
+
+      async function connectRetellCall(accessToken) {
+        retellWebClient = new RetellWebClient();
+
+        retellWebClient.on("call_started", () => {
+          callStatus.textContent = "Call Active";
+          callStatus.className = "call-status active-call";
+          btnEnd.disabled = false;
+          pulseRing.classList.add("active");
+          micPulse.classList.add("active");
+          startCallTimer();
+        });
+
+        retellWebClient.on("call_ended", () => {
+          callStatus.textContent = "Call Ended";
+          callStatus.className = "call-status ended";
+          btnEnd.disabled = true;
+          pulseRing.className = "pulse-ring";
+          micPulse.className = "mic-pulse";
+          stopCallTimer();
+          setTimeout(() => fetchFeedback(), 1500);
+        });
+
+        retellWebClient.on("agent_start_talking", () => {
+          pulseRing.classList.add("talking");
+          micPulse.classList.add("talking");
+        });
+
+        retellWebClient.on("agent_stop_talking", () => {
+          pulseRing.classList.remove("talking");
+          micPulse.classList.remove("talking");
+        });
+
+        retellWebClient.on("update", (update) => {
+          if (update.transcript) {
+            lastTranscript = update.transcript;
+          }
+        });
+
+        retellWebClient.on("error", (error) => {
+          console.error("Retell error:", error);
+          showError("Call error. Please try again.");
+          stopCallTimer();
+          showScreen("select");
+        });
+
+        try {
+          await retellWebClient.startCall({ accessToken });
+        } catch (err) {
+          console.error("Failed to start call:", err);
+          showError("Could not connect to call. Check microphone permissions.");
+          showScreen("select");
+        }
+      }
+
+      function startCallTimer() {
+        callStartTime = Date.now();
+        callTimerInterval = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+          const m = Math.floor(elapsed / 60);
+          const s = String(elapsed % 60).padStart(2, "0");
+          callTimer.textContent = `${m}:${s}`;
+        }, 1000);
+      }
+
+      function stopCallTimer() {
+        clearInterval(callTimerInterval);
+        callTimerInterval = null;
+      }
+
+      btnEnd.addEventListener("click", () => {
+        if (retellWebClient) {
+          retellWebClient.stopCall();
+        }
+      });
+
+      async function fetchFeedback() {
+        let transcript = lastTranscript;
+
+        // Also try to get server-side transcript
+        if (callId) {
+          try {
+            const res = await fetch(`/api/call/${callId}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.transcript) {
+                transcript = data.transcript;
+              }
+            }
+          } catch (e) {
+            // Use client-side transcript as fallback
+          }
+        }
+
+        showScreen("feedback");
+        displayFeedback(transcript);
+        startCooldown();
+      }
+
+      function displayFeedback(transcript) {
+        // Extract TRAINING FEEDBACK from transcript
+        let feedbackText = "";
+        let isSuccess = false;
+        let transcriptText = "";
+
+        if (typeof transcript === "string") {
+          transcriptText = transcript;
+          const feedbackMatch = transcript.match(/TRAINING FEEDBACK:\s*([\s\S]*?)$/);
+          if (feedbackMatch) {
+            feedbackText = feedbackMatch[1].trim();
+          }
+        } else if (Array.isArray(transcript)) {
+          // Retell returns array of { role, content }
+          const lines = [];
+          transcript.forEach((entry) => {
+            const role = entry.role === "agent" ? "Client" : "Agent";
+            lines.push(`<div class="transcript-line"><span class="transcript-role">${role}:</span> ${escapeHtml(entry.content)}</div>`);
+
+            if (entry.content && entry.content.includes("TRAINING FEEDBACK:")) {
+              const match = entry.content.match(/TRAINING FEEDBACK:\s*([\s\S]*?)$/);
+              if (match) feedbackText = match[1].trim();
+            }
+          });
+          transcriptText = lines.join("");
+        }
+
+        if (!feedbackText) {
+          feedbackText = "The call ended. No structured feedback was provided by the training persona. This may happen if the call was very short or disconnected early.";
+        }
+
+        isSuccess = feedbackText.toLowerCase().includes("excellent work") ||
+                    feedbackText.toLowerCase().includes("successfully completed");
+
+        feedbackResult.className = `feedback-result ${isSuccess ? "success" : "failure"}`;
+        feedbackResult.textContent = feedbackText;
+
+        // Transcript
+        if (typeof transcript === "string" && transcript) {
+          transcriptBody.innerHTML = `<div class="transcript-line">${escapeHtml(transcript)}</div>`;
+        } else if (typeof transcriptText === "string" && transcriptText.includes("transcript-line")) {
+          transcriptBody.innerHTML = transcriptText;
+        } else {
+          transcriptBody.innerHTML = '<div class="transcript-line" style="color:var(--gray-400)">No transcript available.</div>';
+        }
+      }
+
+      // Transcript toggle
+      transcriptToggle.addEventListener("click", () => {
+        const isOpen = transcriptBody.classList.toggle("open");
+        toggleArrow.innerHTML = isOpen ? "&#9660;" : "&#9654;";
+      });
+
+      function startCooldown() {
+        let remaining = 120; // 2 minutes
+        btnTryAgain.disabled = true;
+        updateCooldownDisplay(remaining);
+
+        cooldownInterval = setInterval(() => {
+          remaining--;
+          updateCooldownDisplay(remaining);
+
+          if (remaining <= 0) {
+            clearInterval(cooldownInterval);
+            cooldownInterval = null;
+            btnTryAgain.disabled = false;
+            cooldownTimerEl.textContent = "0:00";
+          }
+        }, 1000);
+      }
+
+      function updateCooldownDisplay(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = String(seconds % 60).padStart(2, "0");
+        cooldownTimerEl.textContent = `${m}:${s}`;
+      }
+
+      btnTryAgain.addEventListener("click", () => {
+        clearInterval(cooldownInterval);
+        cooldownInterval = null;
+        transcriptBody.classList.remove("open");
+        toggleArrow.innerHTML = "&#9654;";
+        showScreen("select");
+      });
+
+      // Helpers
+      function showScreen(name) {
+        screenSelect.classList.remove("active");
+        screenCall.classList.remove("active");
+        screenFeedback.classList.remove("active");
+        if (name === "select") screenSelect.classList.add("active");
+        else if (name === "call") screenCall.classList.add("active");
+        else if (name === "feedback") screenFeedback.classList.add("active");
+      }
+
+      function showLoading(show) {
+        loadingOverlay.classList.toggle("active", show);
+      }
+
+      function showError(msg) {
+        errorToast.textContent = msg;
+        errorToast.classList.add("show");
+        setTimeout(() => errorToast.classList.remove("show"), 5000);
+      }
+
+      function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+      }
+    })();
+  </script>
+</body>
+</html>
