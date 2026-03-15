@@ -650,6 +650,8 @@
         micPulse.className = "mic-pulse";
         lastTranscript = "";
         callEndDetected = false;
+        parsedViolationData = null;
+        parsedSuccessData = null;
       }
 
       async function connectRetellCall(accessToken) {
@@ -671,7 +673,10 @@
           pulseRing.className = "pulse-ring";
           micPulse.className = "mic-pulse";
           stopCallTimer();
-          setTimeout(() => fetchFeedback(), 1500);
+          // If we already captured marker data client-side, show feedback quickly.
+          // Otherwise give Retell more time to finalize the transcript.
+          const delay = (parsedViolationData || parsedSuccessData) ? 500 : 2000;
+          setTimeout(() => fetchFeedback(), delay);
         });
 
         retellWebClient.on("agent_start_talking", () => {
@@ -724,6 +729,8 @@
       }
 
       let callEndDetected = false;
+      let parsedViolationData = null;
+      let parsedSuccessData = null;
 
       function detectCallEndMarker(transcript) {
         if (callEndDetected) return;
@@ -735,17 +742,26 @@
           fullText = transcript.map((e) => e.content || "").join(" ");
         }
 
-        // Detect violation marker or success marker or the goodbye phrase
-        const hasMarker = fullText.includes("<<VIOLATION|") ||
-                          fullText.includes("<<SUCCESS|") ||
-                          fullText.includes("I am going to pass");
+        // Only detect actual markers — NOT the goodbye phrase (it fires before the marker streams in)
+        const violationMatch = fullText.match(/<<VIOLATION\|([^|]+)\|(\d+)\|(\d+)\|([^>]+)>>/);
+        const successMatch = fullText.match(/<<SUCCESS\|(\d+)\|([^>]+)>>/);
 
-        if (hasMarker) {
+        if (violationMatch) {
           callEndDetected = true;
-          // End the call immediately — no delay
-          if (retellWebClient) {
-            retellWebClient.stopCall();
-          }
+          parsedViolationData = {
+            type: violationMatch[1].trim(),
+            currentSection: parseInt(violationMatch[2], 10),
+            expectedSection: parseInt(violationMatch[3], 10),
+            description: violationMatch[4].trim(),
+          };
+          if (retellWebClient) retellWebClient.stopCall();
+        } else if (successMatch) {
+          callEndDetected = true;
+          parsedSuccessData = {
+            lastSection: parseInt(successMatch[1], 10),
+            summary: successMatch[2].trim(),
+          };
+          if (retellWebClient) retellWebClient.stopCall();
         }
       }
 
@@ -758,18 +774,59 @@
       async function fetchFeedback() {
         let transcript = lastTranscript;
 
-        // Also try to get server-side transcript
-        if (callId) {
-          try {
-            const res = await fetch(`/api/call/${callId}`);
-            if (res.ok) {
-              const data = await res.json();
-              if (data.transcript) {
-                transcript = data.transcript;
+        // If we already parsed marker data from the client-side stream, use it directly
+        if (parsedViolationData || parsedSuccessData) {
+          // Still try to get server-side transcript for the transcript viewer
+          if (callId) {
+            try {
+              const res = await fetch(`/api/call/${callId}`);
+              if (res.ok) {
+                const data = await res.json();
+                if (data.transcript) transcript = data.transcript;
               }
-            }
-          } catch (e) {
-            // Use client-side transcript as fallback
+            } catch (e) { /* use client-side */ }
+          }
+          showScreen("feedback");
+          displayFeedback(transcript);
+          startCooldown();
+          return;
+        }
+
+        // No marker captured client-side — fetch server-side transcript with retries.
+        // Retell stores the full LLM output including markers, but it may take a
+        // few seconds after the call ends for the transcript to be finalized.
+        if (callId) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            // Wait before each attempt (increasing: 2s, 4s, 6s)
+            await new Promise((r) => setTimeout(r, (attempt + 1) * 2000));
+            try {
+              const res = await fetch(`/api/call/${callId}`);
+              if (res.ok) {
+                const data = await res.json();
+                if (data.transcript) {
+                  transcript = data.transcript;
+                  // Try to parse markers from server-side transcript
+                  const fullText = extractFullText(transcript);
+                  const vm = fullText.match(/<<VIOLATION\|([^|]+)\|(\d+)\|(\d+)\|([^>]+)>>/);
+                  const sm = fullText.match(/<<SUCCESS\|(\d+)\|([^>]+)>>/);
+                  if (vm) {
+                    parsedViolationData = {
+                      type: vm[1].trim(),
+                      currentSection: parseInt(vm[2], 10),
+                      expectedSection: parseInt(vm[3], 10),
+                      description: vm[4].trim(),
+                    };
+                    break;
+                  } else if (sm) {
+                    parsedSuccessData = {
+                      lastSection: parseInt(sm[1], 10),
+                      summary: sm[2].trim(),
+                    };
+                    break;
+                  }
+                }
+              }
+            } catch (e) { /* retry */ }
           }
         }
 
@@ -778,69 +835,70 @@
         startCooldown();
       }
 
+      function extractFullText(transcript) {
+        if (typeof transcript === "string") return transcript;
+        if (Array.isArray(transcript)) return transcript.map((e) => e.content || "").join(" ");
+        return "";
+      }
+
       function displayFeedback(transcript) {
         let transcriptHtml = "";
-        let fullText = "";
 
-        // Build transcript HTML and extract full text
+        // Build transcript HTML (clean markers from display)
         if (typeof transcript === "string") {
-          fullText = transcript;
-          transcriptHtml = `<div class="transcript-line">${escapeHtml(transcript)}</div>`;
+          const clean = transcript.replace(/<<(?:VIOLATION|SUCCESS)\|[^>]*>>/g, "").trim();
+          transcriptHtml = `<div class="transcript-line">${escapeHtml(clean)}</div>`;
         } else if (Array.isArray(transcript)) {
           const lines = [];
-          const textParts = [];
           transcript.forEach((entry) => {
             const role = entry.role === "agent" ? "Client" : "Agent";
             const content = entry.content || "";
-            // Hide violation/success markers from transcript display
             const cleanContent = content.replace(/<<(?:VIOLATION|SUCCESS)\|[^>]*>>/g, "").trim();
             if (cleanContent) {
               lines.push(`<div class="transcript-line"><span class="transcript-role">${role}:</span> ${escapeHtml(cleanContent)}</div>`);
             }
-            textParts.push(content);
           });
-          fullText = textParts.join(" ");
           transcriptHtml = lines.join("");
         }
 
-        // Try to parse violation marker: <<VIOLATION|TYPE|CURRENT|EXPECTED|DESCRIPTION>>
-        const violationMatch = fullText.match(/<<VIOLATION\|([^|]+)\|(\d+)\|(\d+)\|([^>]+)>>/);
-        // Try to parse success marker: <<SUCCESS|LAST_SECTION|DESCRIPTION>>
-        const successMatch = fullText.match(/<<SUCCESS\|(\d+)\|([^>]+)>>/);
-
-        if (violationMatch) {
-          const type = violationMatch[1].trim();
-          const currentSection = parseInt(violationMatch[2], 10);
-          const expectedSection = parseInt(violationMatch[3], 10);
-          const description = violationMatch[4].trim();
-
+        // Use pre-parsed data (from client-side detection or server-side retry)
+        if (parsedViolationData) {
           feedbackResult.className = "feedback-result failure";
-          feedbackResult.innerHTML = buildViolationFeedback(type, currentSection, expectedSection, description);
-        } else if (successMatch) {
-          const lastSection = parseInt(successMatch[1], 10);
-          const summary = successMatch[2].trim();
-
+          feedbackResult.innerHTML = buildViolationFeedback(
+            parsedViolationData.type,
+            parsedViolationData.currentSection,
+            parsedViolationData.expectedSection,
+            parsedViolationData.description,
+          );
+        } else if (parsedSuccessData) {
           feedbackResult.className = "feedback-result success";
-          feedbackResult.innerHTML = buildSuccessFeedback(lastSection, summary);
-        } else if (fullText.includes("I am going to pass")) {
-          // Fallback: goodbye detected but no marker parsed (call ended before marker was generated)
-          feedbackResult.className = "feedback-result failure";
-          feedbackResult.innerHTML = `
-            <div class="feedback-section">
-              <div class="feedback-label">Result</div>
-              <p class="feedback-highlight">Structure Violation Detected</p>
-            </div>
-            <div class="feedback-section">
-              <div class="feedback-label">What Happened</div>
-              <p>The training persona ended the call due to a structure violation. Review the transcript below for details on what went wrong.</p>
-            </div>
-            <div class="feedback-section">
-              <div class="feedback-label">Key Takeaway</div>
-              <p>Follow the 20-section call structure in order. Each section builds on the previous one. Review the Sales Call Cheat Sheet before your next attempt.</p>
-            </div>`;
+          feedbackResult.innerHTML = buildSuccessFeedback(
+            parsedSuccessData.lastSection,
+            parsedSuccessData.summary,
+          );
         } else {
+          // Fallback: no marker captured from either source
+          const fullText = extractFullText(transcript);
+          const hasGoodbye = fullText.includes("I am going to pass") || fullText.includes("going to pass");
+
           feedbackResult.className = "feedback-result failure";
-          feedbackResult.innerHTML = `<div class="feedback-section"><p>The call ended before feedback could be generated. This may happen if the call was very short or disconnected early. Try again and stay on the call long enough for the persona to respond.</p></div>`;
+          if (hasGoodbye) {
+            feedbackResult.innerHTML = `
+              <div class="feedback-section">
+                <div class="feedback-label">Result</div>
+                <p class="feedback-highlight">Structure Violation Detected</p>
+              </div>
+              <div class="feedback-section">
+                <div class="feedback-label">What Happened</div>
+                <p>The training persona ended the call due to a structure violation. The specific violation details could not be captured — review the transcript below to identify where you went off-structure.</p>
+              </div>
+              <div class="feedback-section">
+                <div class="feedback-label">How to Fix This</div>
+                <p>Review the 20-section call structure in the Sales Call Cheat Sheet. Make sure you follow the sections in order: Open (1-3), Discover (4-9), Educate (10-13), Recommend (14-15), Enroll (16-20). Each section must be completed before moving to the next.</p>
+              </div>`;
+          } else {
+            feedbackResult.innerHTML = `<div class="feedback-section"><p>The call ended before feedback could be generated. This may happen if the call was very short or disconnected early. Try again and stay on the call long enough for the persona to respond.</p></div>`;
+          }
         }
 
         transcriptBody.innerHTML = transcriptHtml ||
