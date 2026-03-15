@@ -509,6 +509,40 @@
     import { RetellWebClient } from "https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/+esm";
 
     (function () {
+      // ── Section data for template-based feedback ──
+      const SECTION_DATA = {
+        1: { name: "Scheduled Call Opening", requirement: "Greet by name, confirm good time, set 20-30 min expectation, tell them your only goal is to be a resource.", scriptExcerpt: "Hey [Name]! This is [Your Name] with Mohr Insurance Services — we had a call scheduled for right now. Did I catch you at a good time?", tip: "If bad time → reschedule. Do not push through." },
+        2: { name: "Webinar Question Loop", requirement: "Ask if they watched the webinar, collect ALL their questions, keep asking 'any other questions?' until they say no. Do NOT answer any questions yet — just write them down.", scriptExcerpt: "Before we dive in, were you able to watch the webinar? Just want to see if you had any takeaways or questions from it?", tip: "Do NOT answer any questions yet. Just write them down." },
+        3: { name: "Needs Assessment Permission", requirement: "Ask permission to ask your own questions. Explain you are doing a client needs assessment so you can make a recommendation specific to them. Get a clear 'yes' before asking anything.", scriptExcerpt: "Do you mind if I ask you a few questions of my own to get a better understanding of your current situation? ... What we are going to do right now is go over what we call a client needs assessment.", tip: "Get a clear 'yes' before asking anything." },
+        4: { name: "Client Profile Discovery", requirement: "Collect: date of birth, zip code, work status, insurance type, employer size (if applicable).", scriptExcerpt: "First off — what is your date of birth and zip code? And are you currently working? What type of insurance do you have?", tip: "If employer → ask if 20+ employees." },
+        5: { name: "Current Coverage Cost Discovery", requirement: "Collect: monthly premium, deductible, out-of-pocket max, dental/vision status, dental/vision cost and yearly allowances.", scriptExcerpt: "How much are you paying monthly for your health insurance? What is the deductible? What is the out-of-pocket maximum? Do you currently have dental and vision coverage?", tip: "Note if dental/vision matters — it affects your recommendation." },
+        6: { name: "Health History Discovery", requirement: "Ask about the past 5 years: doctors, medications, hospital stays, surgeries, injuries, sicknesses. If anything serious, ask if they hit their out-of-pocket max.", scriptExcerpt: "Would you mind telling me a little bit about your health history in the past 5 years? Any hospital stays, surgeries, anything serious?", tip: "IF ANYTHING SERIOUS → ask: 'Did you hit your out-of-pocket max?'" },
+        7: { name: "CHS Exposure Discovery", requirement: "Bring up cancer, heart attack, and stroke exposures. Ask about family history. Plant the seed about tens of thousands in out-of-pocket costs. Do not sell yet.", scriptExcerpt: "I just wanted to see if you had any family history with cancer, heart attack or stroke? ... We always recommend preparing against that when you are healthy.", tip: "Do not sell yet. Just plant the seed." },
+        8: { name: "Skilled Nursing Exposure", requirement: "Bring up skilled nursing exposure, ask about family history, tell the 97-day story ($20K bill, client paid $0). Get agreement: 'Does that sound fair?'", scriptExcerpt: "Do you have any personal or family history dealing with skilled nursing facilities? ... I just had a client who spent 97 days in a skilled nursing facility...", tip: "If they ask pricing → defer. 'Pricing varies by zip and age. We will get there soon.'" },
+        9: { name: "Part B Premium Qualification", requirement: "Ask tax filing status (single/joint) and income to determine Part B premium. Always explain WHY you need income info.", scriptExcerpt: "Can you tell me how you filed your taxes? Was it filed single or jointly? And what was your income? This will help me identify how much you will be paying for Medicare Part B.", tip: "Always explain WHY you need income info." },
+        10: { name: "Parked Questions Transition", requirement: "Close the needs assessment. Tell them you will now answer their earlier questions AND walk through Medicare coverage levels. Reference their questions.", scriptExcerpt: "So that wraps up our client needs assessment. Now we are going to answer all of the questions you asked at the beginning and give you a quick refresher on the different levels of coverage.", tip: "Reference their questions — it builds trust." },
+        11: { name: "Level 1 — Medicare Foundation Education", requirement: "Teach Part A (hospital): free if worked 10 yrs, $1,736 fee for first 60 days. Teach Part B (outpatient): $202.90/mo, $283 deductible, then 20% with NO cap. Pause and check for questions.", scriptExcerpt: "Part A is free as long as you have worked 10 total years... Part B has a base premium of $202.90 per month and a deductible of $283 for the year...", tip: "Pause and check: 'Do you have any questions so far?'" },
+        12: { name: "Level 2 — Plan Comparison Education", requirement: "Explain Medicare Advantage (costs less, networks, less flexibility, includes dental/vision/Rx, copay-based) vs Medicare Supplement (costs more, 98% of doctors, $283 deductible then $0, no dental/vision/Rx). Present both fairly. Do not recommend yet.", scriptExcerpt: "Medicare Advantage costs less, has less flexibility with doctors... Medicare Supplement plans — these are the 5-star premium plans, cost more, but you can go anywhere that accepts Medicare...", tip: "Present both fairly. Do not recommend yet." },
+        13: { name: "Level 3 — Umbrella Coverage Education", requirement: "Explain that even with MA or Supp, cancer/heart/stroke/SNF are NOT covered. Level 3 = umbrella coverage that protects savings. Connect back to exposures from Sections 7 & 8.", scriptExcerpt: "Even with Medicare Advantage and Supplement plans, there are non-Medicare-approved expenses — cancer, heart attack, stroke, skilled nursing... That is where level three — umbrella coverage — comes in.", tip: "Connect this back to the exposures from Sections 7 & 8." },
+        14: { name: "Formal Recommendation", requirement: "Present full recommendation: Medicare plan + Cancer ($15K) + Heart/Stroke ($15K) + SNF ($37,800). Give total benefit amount. Give monthly price. Say benefit amount BEFORE price. Then PAUSE and wait.", scriptExcerpt: "Based on everything you told me, my formal recommendation would be... Your total benefit amount is $67,800. The price would be [X] per month.", tip: "Say benefit amount BEFORE price. Then PAUSE and wait." },
+        15: { name: "Objection Handling", requirement: "Handle objections: price, think about it, spouse. Always start with 'I completely understand.' Always book a follow-up before ending.", scriptExcerpt: "I completely understand. I would not be doing my job if I signed you up for something that did not fit your budget...", tip: "ALWAYS book a follow-up before ending. Never let them go without a date." },
+        16: { name: "Enrollment Readiness Check", requirement: "Ask if they have their Medicare card. If no, reassure them you can still protect them today.", scriptExcerpt: "Where are you at in the Medicare enrollment process? Do you have your Medicare card yet?", tip: "Do not skip this. It determines what you can enroll today." },
+        17: { name: "Ancillary-First Close", requirement: "Enroll ancillary FIRST (cancer, heart/stroke, SNF). Explain why: medical underwriting — good health now = approved + lowest rate locked in.", scriptExcerpt: "I want to make sure we get the most important piece locked in first — covering those big exposures... These plans have medical underwriting — we can get you approved today and lock in the lowest rate.", tip: "Explain underwriting in simple terms before starting." },
+        18: { name: "Application Consent & Sensitive Info", requirement: "Explain WHY you need SSN (medical records for underwriting) and WHY you need bank info (prevents credit card fraud). REASON FIRST. Then ask.", scriptExcerpt: "The reason the application asks for your Social Security number is because the insurance company uses it to look at your medical records for underwriting...", tip: "REASON FIRST. Then ask. Never the other way around." },
+        19: { name: "Post-Close Path", requirement: "Take correct next step: MAPD → book 2nd call 48hrs out. Med Supp → enroll now. Ancillary only → done.", scriptExcerpt: "Now that we got you approved, what we always recommend is getting you set up for another call to get your Medicare plan in place...", tip: "Only MAPD needs a follow-up. Med Supp and Ancillary = fully complete." },
+        20: { name: "Follow-Up Booking", requirement: "ONLY for cold feet or MAPD. Book a specific date and time. Not needed if fully enrolled.", scriptExcerpt: "Let us put a time on the calendar now so we have something locked in. What does [day] look like for you?", tip: "Not needed if fully enrolled. Only for cold feet and MAPD." },
+      };
+
+      const VIOLATION_TAKEAWAYS = {
+        PREMATURE_RECOMMENDATION: "Never recommend a plan before completing ALL discovery sections (4-9). You need the full picture of the client's profile, costs, health, exposures, and income before making a recommendation.",
+        PREMATURE_ENROLLMENT: "Never try to enroll before completing all education sections (11, 12, 13). The client must understand their options before they can make an informed decision.",
+        SKIPPED_PERMISSION: "Always ask for the client's permission before diving into personal questions. It builds trust and follows proper call structure.",
+        ANSWERED_PARKED_QUESTIONS: "Park webinar questions for later instead of answering them immediately. Say something like 'Great question, I will make sure we cover that' and move on.",
+        SSN_WITHOUT_EXPLANATION: "Always explain WHY you need sensitive information before asking for it. Explain the reason for SSN (medical underwriting) and bank info (fraud prevention) first.",
+        SKIPPED_MAJOR_SECTION: "Every section exists for a reason. Skipping a section means you are missing critical information needed for a proper recommendation and enrollment.",
+        MAJOR_ORDER_SKIP: "Follow the call structure in order. Each section builds on the previous one. Jumping ahead leaves gaps in understanding.",
+      };
+
       // State
       let personas = [];
       let selectedPersona = null;
@@ -615,7 +649,7 @@
         pulseRing.className = "pulse-ring";
         micPulse.className = "mic-pulse";
         lastTranscript = "";
-        feedbackDetected = false;
+        callEndDetected = false;
       }
 
       async function connectRetellCall(accessToken) {
@@ -653,8 +687,8 @@
         retellWebClient.on("update", (update) => {
           if (update.transcript) {
             lastTranscript = update.transcript;
-            // Auto-end call when persona delivers training feedback
-            detectFeedbackAndEndCall(update.transcript);
+            // Auto-end call when violation or success marker is detected
+            detectCallEndMarker(update.transcript);
           }
         });
 
@@ -689,10 +723,10 @@
         callTimerInterval = null;
       }
 
-      let feedbackDetected = false;
+      let callEndDetected = false;
 
-      function detectFeedbackAndEndCall(transcript) {
-        if (feedbackDetected) return;
+      function detectCallEndMarker(transcript) {
+        if (callEndDetected) return;
 
         let fullText = "";
         if (typeof transcript === "string") {
@@ -701,14 +735,17 @@
           fullText = transcript.map((e) => e.content || "").join(" ");
         }
 
-        if (fullText.includes("TRAINING FEEDBACK:")) {
-          feedbackDetected = true;
-          // Brief delay to let the full feedback text stream in
-          setTimeout(() => {
-            if (retellWebClient) {
-              retellWebClient.stopCall();
-            }
-          }, 2000);
+        // Detect violation marker or success marker or the goodbye phrase
+        const hasMarker = fullText.includes("<<VIOLATION|") ||
+                          fullText.includes("<<SUCCESS|") ||
+                          fullText.includes("I am going to pass");
+
+        if (hasMarker) {
+          callEndDetected = true;
+          // End the call immediately — no delay
+          if (retellWebClient) {
+            retellWebClient.stopCall();
+          }
         }
       }
 
@@ -742,150 +779,156 @@
       }
 
       function displayFeedback(transcript) {
-        let feedbackText = "";
         let transcriptHtml = "";
+        let fullText = "";
 
+        // Build transcript HTML and extract full text
         if (typeof transcript === "string") {
-          const match = transcript.match(/TRAINING FEEDBACK:\s*([\s\S]*?)$/);
-          if (match) feedbackText = match[1].trim();
+          fullText = transcript;
           transcriptHtml = `<div class="transcript-line">${escapeHtml(transcript)}</div>`;
         } else if (Array.isArray(transcript)) {
           const lines = [];
-          // Collect ALL text after TRAINING FEEDBACK across multiple transcript entries
-          let collectingFeedback = false;
-          let feedbackParts = [];
+          const textParts = [];
           transcript.forEach((entry) => {
             const role = entry.role === "agent" ? "Client" : "Agent";
             const content = entry.content || "";
-            lines.push(`<div class="transcript-line"><span class="transcript-role">${role}:</span> ${escapeHtml(content)}</div>`);
-            if (content.includes("TRAINING FEEDBACK:")) {
-              collectingFeedback = true;
-              const match = content.match(/TRAINING FEEDBACK:\s*([\s\S]*?)$/);
-              if (match) feedbackParts.push(match[1].trim());
-            } else if (collectingFeedback && entry.role === "agent") {
-              feedbackParts.push(content.trim());
+            // Hide violation/success markers from transcript display
+            const cleanContent = content.replace(/<<(?:VIOLATION|SUCCESS)\|[^>]*>>/g, "").trim();
+            if (cleanContent) {
+              lines.push(`<div class="transcript-line"><span class="transcript-role">${role}:</span> ${escapeHtml(cleanContent)}</div>`);
             }
+            textParts.push(content);
           });
-          if (feedbackParts.length > 0) {
-            feedbackText = feedbackParts.join(" ");
-          }
+          fullText = textParts.join(" ");
           transcriptHtml = lines.join("");
         }
 
-        if (!feedbackText) {
-          feedbackText = "The call ended before the training persona could provide structured feedback. This may happen if the call was very short or disconnected early. Try again and stay on the call long enough for the persona to respond.";
+        // Try to parse violation marker: <<VIOLATION|TYPE|CURRENT|EXPECTED|DESCRIPTION>>
+        const violationMatch = fullText.match(/<<VIOLATION\|([^|]+)\|(\d+)\|(\d+)\|([^>]+)>>/);
+        // Try to parse success marker: <<SUCCESS|LAST_SECTION|DESCRIPTION>>
+        const successMatch = fullText.match(/<<SUCCESS\|(\d+)\|([^>]+)>>/);
+
+        if (violationMatch) {
+          const type = violationMatch[1].trim();
+          const currentSection = parseInt(violationMatch[2], 10);
+          const expectedSection = parseInt(violationMatch[3], 10);
+          const description = violationMatch[4].trim();
+
+          feedbackResult.className = "feedback-result failure";
+          feedbackResult.innerHTML = buildViolationFeedback(type, currentSection, expectedSection, description);
+        } else if (successMatch) {
+          const lastSection = parseInt(successMatch[1], 10);
+          const summary = successMatch[2].trim();
+
+          feedbackResult.className = "feedback-result success";
+          feedbackResult.innerHTML = buildSuccessFeedback(lastSection, summary);
+        } else if (fullText.includes("I am going to pass")) {
+          // Fallback: goodbye detected but no marker parsed (call ended before marker was generated)
+          feedbackResult.className = "feedback-result failure";
+          feedbackResult.innerHTML = `
+            <div class="feedback-section">
+              <div class="feedback-label">Result</div>
+              <p class="feedback-highlight">Structure Violation Detected</p>
+            </div>
+            <div class="feedback-section">
+              <div class="feedback-label">What Happened</div>
+              <p>The training persona ended the call due to a structure violation. Review the transcript below for details on what went wrong.</p>
+            </div>
+            <div class="feedback-section">
+              <div class="feedback-label">Key Takeaway</div>
+              <p>Follow the 20-section call structure in order. Each section builds on the previous one. Review the Sales Call Cheat Sheet before your next attempt.</p>
+            </div>`;
+        } else {
+          feedbackResult.className = "feedback-result failure";
+          feedbackResult.innerHTML = `<div class="feedback-section"><p>The call ended before feedback could be generated. This may happen if the call was very short or disconnected early. Try again and stay on the call long enough for the persona to respond.</p></div>`;
         }
-
-        const isSuccess = /NONE|SUCCESSFULLY|EXCELLENT/i.test(feedbackText);
-
-        feedbackResult.className = `feedback-result ${isSuccess ? "success" : "failure"}`;
-        feedbackResult.innerHTML = formatFeedback(feedbackText, isSuccess);
 
         transcriptBody.innerHTML = transcriptHtml ||
           '<div class="transcript-line" style="color:var(--gray-400)">No transcript available.</div>';
       }
 
-      function formatFeedback(text, isSuccess) {
-        // Parse labeled fields: VIOLATION:, WHAT HAPPENED:, EXPECTED NEXT STEP:, SECTION TO REVIEW:, KEY TAKEAWAY:
-        const fields = {};
-        const fieldPatterns = [
-          { key: "violation", pattern: /VIOLATION:\s*(.*?)(?=\s*(?:WHAT HAPPENED:|$))/si },
-          { key: "whatHappened", pattern: /WHAT HAPPENED:\s*(.*?)(?=\s*(?:EXPECTED NEXT STEP:|$))/si },
-          { key: "expectedStep", pattern: /EXPECTED NEXT STEP:\s*(.*?)(?=\s*(?:SECTION TO REVIEW:|$))/si },
-          { key: "sectionToReview", pattern: /SECTION TO REVIEW:\s*(.*?)(?=\s*(?:KEY TAKEAWAY:|$))/si },
-          { key: "takeaway", pattern: /KEY TAKEAWAY:\s*(.*?)$/si },
-        ];
+      function buildViolationFeedback(type, currentSection, expectedSection, description) {
+        const current = SECTION_DATA[currentSection] || { name: `Section ${currentSection}`, requirement: "Unknown", scriptExcerpt: "", tip: "" };
+        const expected = SECTION_DATA[expectedSection] || { name: `Section ${expectedSection}`, requirement: "Unknown", scriptExcerpt: "", tip: "" };
+        const takeaway = VIOLATION_TAKEAWAYS[type] || "Follow the call structure in order and do not skip steps.";
 
-        for (const { key, pattern } of fieldPatterns) {
-          const match = text.match(pattern);
-          if (match) fields[key] = match[1].trim();
-        }
+        let html = "";
 
-        // Also try the older single-line format as fallback
-        if (!fields.whatHappened) {
-          const agentMatch = text.match(/agent was on Section (\d+)\s*\(([^)]+)\)\s*and\s*(.*?)(?=\.\s*(?:The correct|Expected|Section to))/si);
-          if (agentMatch) {
-            fields.whatHappened = `The agent was on Section ${agentMatch[1]} (${agentMatch[2]}) and ${agentMatch[3]}.`;
-          }
-        }
-        if (!fields.sectionToReview) {
-          const revMatch = text.match(/Section to review:\s*Section (\d+)\s*(?:—|[-–])\s*([^\n.]+)/i);
-          if (revMatch) fields.sectionToReview = `Section ${revMatch[1]} — ${revMatch[2].trim()}`;
-        }
-        if (!fields.takeaway && !fields.whatHappened) {
-          // No structured fields found at all — try to extract violation type
-          const violMatch = text.match(/^([A-Z_ ]+)/);
-          if (violMatch) fields.violation = violMatch[1].trim();
-        }
+        // Violation type
+        html += `<div class="feedback-section">
+          <div class="feedback-label">Violation Type</div>
+          <p class="feedback-highlight">${escapeHtml(type.replace(/_/g, " "))}</p>
+        </div>`;
 
-        const hasStructuredData = fields.whatHappened || fields.expectedStep || fields.sectionToReview;
+        // What went wrong
+        html += `<div class="feedback-section">
+          <div class="feedback-label">What Went Wrong</div>
+          <p>You were on Section ${currentSection} (${escapeHtml(current.name)}) and ${escapeHtml(description)}.</p>
+        </div>`;
 
-        if (isSuccess) {
-          let html = `<div class="feedback-section">
-            <div class="feedback-label">Result</div>
-            <p class="feedback-highlight" style="color:var(--green);">Call Completed Successfully</p>
+        // Expected next step
+        html += `<div class="feedback-section">
+          <div class="feedback-label">What You Should Have Done</div>
+          <p>After Section ${currentSection} (${escapeHtml(current.name)}), you should have moved to Section ${expectedSection} (${escapeHtml(expected.name)}), where you would ${escapeHtml(expected.requirement)}</p>
+        </div>`;
+
+        // Section to study
+        html += `<div class="feedback-section">
+          <div class="feedback-label">Section to Study</div>
+          <p class="feedback-highlight">Section ${expectedSection} — ${escapeHtml(expected.name)}</p>
+        </div>`;
+
+        // Script recommendation
+        if (expected.scriptExcerpt) {
+          html += `<div class="feedback-section">
+            <div class="feedback-label">Script Recommendation</div>
+            <p style="font-style:italic;">"${escapeHtml(expected.scriptExcerpt)}"</p>
           </div>`;
-          if (fields.sectionToReview) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">Strengths</div>
-              <p>${escapeHtml(fields.sectionToReview)}</p>
-            </div>`;
-          }
-          if (fields.takeaway) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">Key Takeaway</div>
-              <p>${escapeHtml(fields.takeaway)}</p>
-            </div>`;
-          }
-          if (!fields.sectionToReview && !fields.takeaway) {
-            html += `<div class="feedback-section"><p>${escapeHtml(text)}</p></div>`;
-          }
-          return html;
         }
 
-        if (hasStructuredData) {
-          let html = "";
+        // Key takeaway
+        html += `<div class="feedback-section">
+          <div class="feedback-label">Key Takeaway</div>
+          <p>${escapeHtml(takeaway)}</p>
+        </div>`;
 
-          if (fields.violation) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">Violation Type</div>
-              <p class="feedback-highlight">${escapeHtml(fields.violation.replace(/_/g, " "))}</p>
-            </div>`;
-          }
-
-          if (fields.whatHappened) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">What Went Wrong</div>
-              <p>${escapeHtml(fields.whatHappened)}</p>
-            </div>`;
-          }
-
-          if (fields.expectedStep) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">What You Should Have Done</div>
-              <p>${escapeHtml(fields.expectedStep)}</p>
-            </div>`;
-          }
-
-          if (fields.sectionToReview) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">Section to Study</div>
-              <p class="feedback-highlight">${escapeHtml(fields.sectionToReview)}</p>
-            </div>`;
-          }
-
-          if (fields.takeaway) {
-            html += `<div class="feedback-section">
-              <div class="feedback-label">Key Takeaway</div>
-              <p>${escapeHtml(fields.takeaway)}</p>
-            </div>`;
-          }
-
-          return html;
+        // Cheat sheet reminder
+        if (expected.tip) {
+          html += `<div class="feedback-section">
+            <div class="feedback-label">Cheat Sheet Reminder</div>
+            <p>${escapeHtml(expected.tip)}</p>
+          </div>`;
         }
 
-        // Fallback: raw text
-        return `<div class="feedback-section"><p>${escapeHtml(text)}</p></div>`;
+        return html;
+      }
+
+      function buildSuccessFeedback(lastSection, summary) {
+        const section = SECTION_DATA[lastSection] || { name: `Section ${lastSection}` };
+
+        let html = `<div class="feedback-section">
+          <div class="feedback-label">Result</div>
+          <p class="feedback-highlight" style="color:var(--green);">Call Completed Successfully</p>
+        </div>`;
+
+        html += `<div class="feedback-section">
+          <div class="feedback-label">Summary</div>
+          <p>You completed all sections through Section ${lastSection} (${escapeHtml(section.name)}) in the correct order.</p>
+        </div>`;
+
+        if (summary) {
+          html += `<div class="feedback-section">
+            <div class="feedback-label">Strengths</div>
+            <p>${escapeHtml(summary)}</p>
+          </div>`;
+        }
+
+        html += `<div class="feedback-section">
+          <div class="feedback-label">Key Takeaway</div>
+          <p>Great work following the call structure. Keep practicing to build consistency and confidence with the script language.</p>
+        </div>`;
+
+        return html;
       }
 
       // Transcript toggle

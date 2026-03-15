@@ -50,7 +50,13 @@ app.post("/api/create-call", async (req, res) => {
       const llm = await retellClient.llm.create({
         model: "gpt-4o",
         general_prompt: systemPrompt,
-        general_tools: [],
+        general_tools: [
+          {
+            type: "end_call",
+            name: "end_call",
+            description: "End the call. Use this after saying goodbye when you detect a structure violation, or after the call completes successfully.",
+          },
+        ],
         begin_message: null,
       });
 

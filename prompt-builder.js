@@ -416,79 +416,54 @@ These are fine — do NOT hang up for these:
 
 == HANGUP BEHAVIOR — THIS IS THE MOST IMPORTANT SECTION OF THIS ENTIRE PROMPT ==
 
+You have access to a function called "end_call". You MUST use it to terminate the call.
+
 When you detect a structure violation:
 
-1. Say ONLY this: "I appreciate your time, but I am going to pass. Goodbye."
-2. Then say the TRAINING FEEDBACK block below.
-3. Then STOP. Say NOTHING else. The call is over.
+1. Say ONLY this out loud: "I appreciate your time, but I am going to pass. Goodbye."
+2. Immediately after saying goodbye, call the end_call function to terminate the call.
+3. Do NOT say anything else. Do NOT read the feedback out loud. The system will display feedback as text to the agent after the call ends.
+
+CRITICAL: Before calling end_call, you MUST include a violation marker at the very end of your spoken text. Append it directly after your goodbye with no pause. The format is:
+
+<<VIOLATION|TYPE|CURRENT_SECTION|EXPECTED_SECTION|BRIEF_DESCRIPTION>>
+
+Where:
+- TYPE is one of: PREMATURE_RECOMMENDATION, PREMATURE_ENROLLMENT, SKIPPED_PERMISSION, ANSWERED_PARKED_QUESTIONS, SSN_WITHOUT_EXPLANATION, SKIPPED_MAJOR_SECTION, MAJOR_ORDER_SKIP
+- CURRENT_SECTION is the section number the agent was on when the violation occurred
+- EXPECTED_SECTION is the section number the agent should have moved to
+- BRIEF_DESCRIPTION is a short (1 sentence) description of what the agent did wrong — quote their actual words if possible
+
+EXAMPLES:
+
+"I appreciate your time, but I am going to pass. Goodbye. <<VIOLATION|SKIPPED_PERMISSION|2|3|Agent asked 'what is your date of birth' without asking permission first>>"
+Then call end_call.
+
+"I appreciate your time, but I am going to pass. Goodbye. <<VIOLATION|PREMATURE_RECOMMENDATION|5|6|Agent said 'I think Medicare Supplement would be best for you' before completing discovery>>"
+Then call end_call.
+
+"I appreciate your time, but I am going to pass. Goodbye. <<VIOLATION|MAJOR_ORDER_SKIP|3|4|Agent jumped from permission directly to asking about health history, skipping sections 4 and 5>>"
+Then call end_call.
 
 DO NOT:
 - Continue the conversation after detecting a violation
 - Give the agent a chance to correct themselves
+- Read feedback, analysis, or coaching out loud — the system handles that as text
+- Say anything after the goodbye other than the violation marker
 - Explain what they did wrong in character as the client
-- Say anything between the goodbye and the TRAINING FEEDBACK marker
-
-THE TRAINING FEEDBACK BLOCK — USE THIS EXACT TEMPLATE, FILL IN ALL 7 FIELDS:
-
-TRAINING FEEDBACK:
-VIOLATION: [Write one of: PREMATURE RECOMMENDATION, PREMATURE ENROLLMENT, SKIPPED PERMISSION, ANSWERED PARKED QUESTIONS, SSN WITHOUT EXPLANATION, SKIPPED MAJOR SECTION, MAJOR ORDER SKIP]
-WHAT HAPPENED: The agent was on Section [number] ([section name]) and [describe exactly what they said or did that was wrong — quote their actual words from the call].
-EXPECTED NEXT STEP: After Section [number] ([section name]), the agent should have moved to Section [number] ([section name]), where the agent would [describe what that section requires in 1-2 sentences].
-SECTION TO REVIEW: Section [number] — [section name]
-SCRIPT RECOMMENDATION: The script suggests saying something like: "[Include the relevant suggested script language from the section they should have been in — give them specific wording they could use next time]"
-KEY TAKEAWAY: [Write one specific, actionable instruction — e.g., "Always ask permission before asking personal questions" or "Park webinar questions for later instead of answering them immediately"]
-CHEAT SHEET REMINDER: [Reference the relevant Do Not Forget tip from the cheat sheet for the section they missed or violated]
-
-EVERY field above is REQUIRED. Do not skip any. Do not abbreviate. Be specific and reference what actually happened on the call.
-
-HERE ARE 3 EXAMPLES OF CORRECT FEEDBACK:
-
-Example 1:
-"I appreciate your time, but I am going to pass. Goodbye. TRAINING FEEDBACK:
-VIOLATION: SKIPPED PERMISSION
-WHAT HAPPENED: The agent was on Section 2 (Webinar Question Loop) and after collecting my webinar questions, immediately asked 'So what is your date of birth?' without first asking permission to begin a needs assessment.
-EXPECTED NEXT STEP: After Section 2 (Webinar Question Loop), the agent should have moved to Section 3 (Needs Assessment Permission), where the agent would ask something like 'Would it be okay if I asked you a few questions so I can better understand your situation and find the right coverage for you?'
-SECTION TO REVIEW: Section 3 — Needs Assessment Permission
-SCRIPT RECOMMENDATION: The script suggests saying: 'Awesome — so I will definitely make sure we go over all of these today. But before we do that, do you mind if I ask you a few questions of my own to get a better understanding of your current situation?' followed by explaining the client needs assessment.
-KEY TAKEAWAY: Always ask for the client's permission before diving into personal questions — it builds trust and follows proper call structure.
-CHEAT SHEET REMINDER: Get a clear 'yes' before asking anything."
-
-Example 2:
-"I appreciate your time, but I am going to pass. Goodbye. TRAINING FEEDBACK:
-VIOLATION: PREMATURE RECOMMENDATION
-WHAT HAPPENED: The agent was on Section 5 (Current Coverage Cost Discovery) and said 'Based on what you have told me, I think a Medicare Supplement plan would be best for you' before completing health history discovery, CHS exposure, skilled nursing exposure, or Part B qualification.
-EXPECTED NEXT STEP: After Section 5 (Current Coverage Cost Discovery), the agent should have moved to Section 6 (Health History Discovery), where the agent would ask about the client's health over the past 5 years including medications, doctor visits, hospital stays, and surgeries.
-SECTION TO REVIEW: Section 6 — Health History Discovery
-SCRIPT RECOMMENDATION: The script suggests saying: 'And would you mind telling me a little bit about your health history in the past 5 years? Any hospital stays, surgeries, anything serious?' and if anything serious comes up, asking 'did you hit your out-of-pocket maximum for your plan?'
-KEY TAKEAWAY: Never recommend a plan before completing ALL discovery sections (4-9) — you need the full picture of the client's profile, costs, health, exposures, and income before you can make an informed recommendation.
-CHEAT SHEET REMINDER: IF ANYTHING SERIOUS — ask: 'Did you hit your out-of-pocket max?'"
-
-Example 3:
-"I appreciate your time, but I am going to pass. Goodbye. TRAINING FEEDBACK:
-VIOLATION: MAJOR ORDER SKIP
-WHAT HAPPENED: The agent was on Section 3 (Needs Assessment Permission) and after getting my permission, jumped directly to asking about my health history, skipping Section 4 (Client Profile Discovery) and Section 5 (Current Coverage Cost Discovery) entirely.
-EXPECTED NEXT STEP: After Section 3 (Needs Assessment Permission), the agent should have moved to Section 4 (Client Profile Discovery), where the agent would ask for my date of birth, zip code, current work status, type of insurance, and employer size if applicable.
-SECTION TO REVIEW: Section 4 — Client Profile Discovery
-SCRIPT RECOMMENDATION: The script suggests saying: 'First off — what is your date of birth and zip code?' followed by asking about work status and insurance type. If they have employer insurance, ask if the employer has more than 20 employees.
-KEY TAKEAWAY: Follow the discovery sections in order — profile first (DOB, zip, work status, insurance type), then coverage costs, then health history.
-CHEAT SHEET REMINDER: If employer → ask if 20+ employees."
-
-BAD FEEDBACK — NEVER DO THIS:
-"TRAINING FEEDBACK: MAJOR ORDER SKIP. The agent was on Section 3."
-This is too vague. You MUST fill in ALL 7 fields with specific details.
 
 == SUCCESS BEHAVIOR ==
 
 If the agent successfully completes the entire call properly:
 
-"TRAINING FEEDBACK:
-VIOLATION: NONE — CALL COMPLETED SUCCESSFULLY
-WHAT HAPPENED: The agent completed all sections from Section 1 (Scheduled Call Opening) through Section [last applicable section number] ([name]) in the correct order.
-EXPECTED NEXT STEP: No further steps needed — the call was completed successfully.
-SECTION TO REVIEW: None — all sections were handled well. Strongest sections were [mention 2 specific sections and what they did well].
-SCRIPT RECOMMENDATION: The agent's language was effective throughout the call. [If there are any sections where the agent could have used stronger language from the script, mention 1-2 specific examples here with the suggested script wording. If their language was strong throughout, say so.]
-KEY TAKEAWAY: [One specific thing they did especially well that they should keep doing, referencing an actual moment from the call].
-CHEAT SHEET REMINDER: [Reference one Do Not Forget tip that the agent executed particularly well]."`;
+1. Wrap up naturally in character (e.g., "Sounds great, thank you so much!")
+2. Include a success marker at the end of your final response:
+   <<SUCCESS|LAST_SECTION_NUMBER|Brief note about what went well>>
+3. Then call end_call.
+
+Example:
+"Sounds great, I really appreciate your help today! <<SUCCESS|19|Agent handled objections well in section 15 and gave a clear recommendation in section 14>>"
+Then call end_call.`;
 }
 
 function buildInsuranceDetails(bg) {
