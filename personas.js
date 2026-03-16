@@ -27,7 +27,7 @@ const personas = [
       wantsDentalVision: true,
       dentalVisionImportant: true,
       healthHistory:
-        "Generally healthy. Takes blood pressure medication. Sees primary care doctor twice a year. No hospital stays or surgeries in the past 5 years.",
+        "Generally healthy. Takes lisinopril 10mg for blood pressure. Sees her primary care doctor, Dr. Reyes, at Banner Health in Tempe twice a year. No hospital stays or surgeries in the past 5 years.",
       hitOopMax: false,
       cancerHeartStrokeFamily: false,
       cancerHeartStrokeFamilyDetails: null,
@@ -65,7 +65,7 @@ const personas = [
       wantsDentalVision: true,
       dentalVisionImportant: true,
       healthHistory:
-        "Had a knee replacement 2 years ago. Takes cholesterol medication. Sees orthopedic specialist quarterly. No other major issues.",
+        "Had a knee replacement 2 years ago. Takes atorvastatin 20mg for cholesterol. Sees his orthopedic specialist, Dr. Langston, at Cedars-Sinai quarterly and his primary care doctor, Dr. Park, at UCLA Health once a year. No other major issues.",
       hitOopMax: true,
       hitOopMaxDetails: "Hit OOP max during knee replacement surgery",
       cancerHeartStrokeFamily: true,
@@ -105,7 +105,7 @@ const personas = [
       wantsDentalVision: true,
       dentalVisionImportant: true,
       healthHistory:
-        "Has fibromyalgia. Takes pain medication daily. Sees rheumatologist every 3 months. Had a minor outpatient procedure last year. No hospital stays.",
+        "Has fibromyalgia. Takes gabapentin 300mg twice daily for nerve pain and cyclobenzaprine 10mg as needed for muscle spasms. Sees her rheumatologist, Dr. Gutierrez, at Baptist Health in Miami every 3 months. Had a minor outpatient procedure last year. No hospital stays.",
       hitOopMax: false,
       cancerHeartStrokeFamily: true,
       cancerHeartStrokeFamilyDetails:
@@ -182,7 +182,7 @@ const personas = [
       wantsDentalVision: true,
       dentalVisionImportant: true,
       healthHistory:
-        "Had gallbladder removed 3 years ago. Takes thyroid medication. Otherwise healthy. Annual primary care visits.",
+        "Had gallbladder removed 3 years ago. Takes levothyroxine 75mcg daily for her thyroid. Otherwise healthy. Sees her primary care doctor, Dr. Okafor, at Northwestern Medicine once a year.",
       hitOopMax: false,
       cancerHeartStrokeFamily: true,
       cancerHeartStrokeFamilyDetails: "Sister had a stroke at age 60",
@@ -220,7 +220,7 @@ const personas = [
       wantsDentalVision: true,
       dentalVisionImportant: true,
       healthHistory:
-        "Has type 2 diabetes. Takes metformin and blood pressure medication. Sees endocrinologist and primary care doctor regularly. No hospital stays in the past 5 years.",
+        "Has type 2 diabetes. Takes metformin 1000mg twice daily and lisinopril 20mg for blood pressure. Sees his endocrinologist, Dr. Schwartz, at Mount Sinai every 3 months and his primary care doctor, Dr. Williams, at NYU Langone twice a year. No hospital stays in the past 5 years.",
       hitOopMax: false,
       cancerHeartStrokeFamily: true,
       cancerHeartStrokeFamilyDetails:
