@@ -92,7 +92,7 @@ const personas = [
       hasMedicareCard: false,
       watchedWebinar: false,
       dob: "11/08/1962",
-      zip: "33101",
+      zip: "70112",
       taxFiling: "Single",
       income: "$28,000",
       premium: "$120/month",
@@ -105,7 +105,7 @@ const personas = [
       wantsDentalVision: true,
       dentalVisionImportant: true,
       healthHistory:
-        "Has fibromyalgia. Takes gabapentin 300mg twice daily for nerve pain and cyclobenzaprine 10mg as needed for muscle spasms. Sees her rheumatologist, Dr. Gutierrez, at Baptist Health in Miami every 3 months. Had a minor outpatient procedure last year. No hospital stays.",
+        "Has fibromyalgia. Takes gabapentin 300mg twice daily for nerve pain and cyclobenzaprine 10mg as needed for muscle spasms. Sees her rheumatologist, Dr. Thibodaux, at Ochsner Health in New Orleans every 3 months. Had a minor outpatient procedure last year. No hospital stays.",
       hitOopMax: false,
       cancerHeartStrokeFamily: true,
       cancerHeartStrokeFamilyDetails:
@@ -169,7 +169,7 @@ const personas = [
       hasMedicareCard: false,
       watchedWebinar: false,
       dob: "01/17/1962",
-      zip: "60601",
+      zip: "28202",
       taxFiling: "Married filing jointly",
       income: "$68,000",
       premium: "$0/month",
@@ -182,7 +182,7 @@ const personas = [
       wantsDentalVision: true,
       dentalVisionImportant: true,
       healthHistory:
-        "Had gallbladder removed 3 years ago. Takes levothyroxine 75mcg daily for her thyroid. Otherwise healthy. Sees her primary care doctor, Dr. Okafor, at Northwestern Medicine once a year.",
+        "Had gallbladder removed 3 years ago. Takes levothyroxine 75mcg daily for her thyroid. Otherwise healthy. Sees her primary care doctor, Dr. Okafor, at Atrium Health in Charlotte once a year.",
       hitOopMax: false,
       cancerHeartStrokeFamily: true,
       cancerHeartStrokeFamilyDetails: "Sister had a stroke at age 60",
@@ -207,7 +207,7 @@ const personas = [
       hasMedicareCard: false,
       watchedWebinar: true,
       dob: "07/30/1961",
-      zip: "10001",
+      zip: "89101",
       taxFiling: "Single",
       income: "$22,000",
       premium: "$0/month",
@@ -220,7 +220,7 @@ const personas = [
       wantsDentalVision: true,
       dentalVisionImportant: true,
       healthHistory:
-        "Has type 2 diabetes. Takes metformin 1000mg twice daily and lisinopril 20mg for blood pressure. Sees his endocrinologist, Dr. Schwartz, at Mount Sinai every 3 months and his primary care doctor, Dr. Williams, at NYU Langone twice a year. No hospital stays in the past 5 years.",
+        "Has type 2 diabetes. Takes metformin 1000mg twice daily and lisinopril 20mg for blood pressure. Sees his endocrinologist, Dr. Patel, at Sunrise Health in Las Vegas every 3 months and his primary care doctor, Dr. Coleman, at UMC Health twice a year. No hospital stays in the past 5 years.",
       hitOopMax: false,
       cancerHeartStrokeFamily: true,
       cancerHeartStrokeFamilyDetails:
@@ -247,7 +247,7 @@ const personas = [
       hasMedicareCard: true,
       watchedWebinar: true,
       dob: "02/28/1961",
-      zip: "30301",
+      zip: "83702",
       taxFiling: "Single",
       income: "$55,000",
       premium: "$0/month",
