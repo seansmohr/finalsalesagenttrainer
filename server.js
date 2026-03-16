@@ -21,6 +21,7 @@ const {
 } = require("./db");
 
 const app = express();
+app.set("trust proxy", 1); // trust Railway's reverse proxy
 app.use(express.json());
 
 // ── Sessions ──
@@ -34,6 +35,7 @@ app.use(
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       httpOnly: true,
       sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
     },
   })
 );

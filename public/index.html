@@ -828,9 +828,11 @@
       async function loadPersonas() {
         try {
           const res = await fetch("/api/personas");
+          if (!res.ok) throw new Error("Failed to load personas");
           personas = await res.json();
           renderPersonaGrid();
         } catch (err) {
+          console.error("loadPersonas error:", err);
           showError("Failed to load personas. Please refresh.");
         }
       }
