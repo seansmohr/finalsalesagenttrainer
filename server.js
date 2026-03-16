@@ -277,6 +277,16 @@ app.get("/api/my-attempts", requireAuth, (req, res) => {
   res.json(attempts);
 });
 
+// ── Auto-promote admin on startup ──
+const ADMIN_EMAILS = ["sean@jmohrins.com"];
+for (const email of ADMIN_EMAILS) {
+  const user = findUserByEmail(email);
+  if (user && user.role !== "admin") {
+    db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
+    console.log(`Promoted ${email} to admin`);
+  }
+}
+
 // ── Admin routes ──
 
 // GET /api/admin/agents — all agents with summary stats
