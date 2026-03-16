@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mohr Insurance — Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #1B2A4A;
+      --blue: #3A6EA5;
+      --gold: #D4A843;
+      --bg: #F8F9FB;
+      --white: #FFFFFF;
+      --gray-100: #F1F3F5;
+      --gray-200: #E2E6EA;
+      --gray-400: #8C939A;
+      --gray-600: #4A5568;
+      --red: #E53E3E;
+      --green: #38A169;
+      --orange: #D69E2E;
+      --radius: 12px;
+      --shadow: 0 2px 8px rgba(27,42,74,0.08);
+      --shadow-lg: 0 4px 20px rgba(27,42,74,0.12);
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--navy);
+      min-height: 100vh;
+    }
+
+    .header {
+      background: var(--navy);
+      color: var(--white);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-brand { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+    .header-brand span { color: var(--gold); }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .header-subtitle { font-size: 14px; font-weight: 400; opacity: 0.8; }
+    .btn-back {
+      background: rgba(255,255,255,0.15);
+      color: var(--white);
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: none;
+    }
+    .btn-back:hover { background: rgba(255,255,255,0.25); }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+    /* Auth gate */
+    .auth-gate {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--gray-400);
+      font-size: 16px;
+    }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 24px;
+    }
+    .stat-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--gray-400);
+      margin-bottom: 6px;
+    }
+    .stat-value { font-size: 28px; font-weight: 700; }
+    .stat-value.green { color: var(--green); }
+    .stat-value.red { color: var(--red); }
+    .stat-value.blue { color: var(--blue); }
+
+    /* Agent table */
+    .panel {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .panel-header {
+      padding: 18px 24px;
+      font-size: 16px;
+      font-weight: 700;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-header .btn-text {
+      font-size: 13px;
+      color: var(--blue);
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: inherit;
+      font-weight: 600;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
+      text-align: left;
+      padding: 12px 24px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--gray-400);
+      border-bottom: 1px solid var(--gray-200);
+      background: var(--gray-100);
+    }
+    td {
+      padding: 14px 24px;
+      font-size: 14px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f5f7fa; }
+    .clickable { cursor: pointer; }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-green { background: #E6F6EC; color: var(--green); }
+    .badge-red { background: #FEE; color: var(--red); }
+    .badge-orange { background: #FEF3C7; color: var(--orange); }
+    .badge-gray { background: var(--gray-100); color: var(--gray-400); }
+
+    /* Agent detail */
+    .detail-back {
+      font-size: 14px;
+      color: var(--blue);
+      cursor: pointer;
+      margin-bottom: 20px;
+      display: inline-block;
+      font-weight: 600;
+    }
+    .detail-back:hover { text-decoration: underline; }
+    .detail-name {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .detail-email {
+      font-size: 14px;
+      color: var(--gray-400);
+      margin-bottom: 24px;
+    }
+
+    /* Insight card */
+    .insight-card {
+      background: #EBF4FF;
+      border-left: 4px solid var(--blue);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+    }
+    .insight-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--blue);
+    }
+    .insight-card p {
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--navy);
+    }
+
+    /* Progress bars */
+    .progress-bar-bg {
+      height: 8px;
+      background: var(--gray-200);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px;
+      color: var(--gray-400);
+      font-size: 14px;
+    }
+
+    /* Violation type display */
+    .violation-type {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--gray-600);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="header-brand"><span>Mohr</span> Insurance</div>
+    </div>
+    <div class="header-right">
+      <div class="header-subtitle">Admin Dashboard</div>
+      <a href="/" class="btn-back">Simulator</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="auth-gate" class="auth-gate">Checking access...</div>
+
+    <!-- Overview View -->
+    <div id="view-overview" style="display:none;">
+      <div id="stats-row" class="stats-row"></div>
+      <div class="panel">
+        <div class="panel-header">
+          All Agents
+          <button class="btn-text" id="btn-refresh" onclick="loadDashboard()">Refresh</button>
+        </div>
+        <div id="agents-table"></div>
+      </div>
+    </div>
+
+    <!-- Agent Detail View -->
+    <div id="view-detail" style="display:none;">
+      <div class="detail-back" id="btn-back-to-list">Back to all agents</div>
+      <div id="detail-header"></div>
+      <div id="detail-insight"></div>
+      <div id="detail-stats" class="stats-row"></div>
+      <div id="detail-personas" class="panel" style="margin-bottom:24px;"></div>
+      <div id="detail-violations" class="panel" style="margin-bottom:24px;"></div>
+      <div id="detail-attempts" class="panel"></div>
+    </div>
+  </div>
+
+  <script>
+    const VIOLATION_LABELS = {
+      PREMATURE_RECOMMENDATION: "Premature Recommendation",
+      PREMATURE_ENROLLMENT: "Premature Enrollment",
+      SKIPPED_PERMISSION: "Skipped Permission",
+      ANSWERED_PARKED_QUESTIONS: "Answered Parked Questions",
+      SSN_WITHOUT_EXPLANATION: "SSN Without Explanation",
+      SKIPPED_MAJOR_SECTION: "Skipped Major Section",
+      MAJOR_ORDER_SKIP: "Major Order Skip",
+    };
+
+    const SECTION_NAMES = {
+      1: "Scheduled Call Opening", 2: "Webinar Question Loop", 3: "Needs Assessment Permission",
+      4: "Client Profile Discovery", 5: "Current Coverage Cost", 6: "Health History Discovery",
+      7: "CHS Exposure Discovery", 8: "Skilled Nursing Exposure", 9: "Part B Premium Qualification",
+      10: "Parked Questions Transition", 11: "Level 1 Education", 12: "Level 2 Education",
+      13: "Level 3 Education", 14: "Formal Recommendation", 15: "Objection Handling",
+      16: "Enrollment Readiness Check", 17: "Ancillary-First Close",
+      18: "Application Consent", 19: "Post-Close Path", 20: "Follow-Up Booking",
+    };
+
+    async function checkAuth() {
+      const gate = document.getElementById("auth-gate");
+      try {
+        const res = await fetch("/api/me");
+        const data = await res.json();
+        if (!data.user || data.user.role !== "admin") {
+          gate.textContent = "Admin access required. Please log in as an admin.";
+          return false;
+        }
+        gate.style.display = "none";
+        return true;
+      } catch {
+        gate.textContent = "Failed to verify access.";
+        return false;
+      }
+    }
+
+    async function loadDashboard() {
+      const authed = await checkAuth();
+      if (!authed) return;
+
+      document.getElementById("view-overview").style.display = "block";
+      document.getElementById("view-detail").style.display = "none";
+
+      try {
+        const res = await fetch("/api/admin/agents");
+        const agents = await res.json();
+        renderOverview(agents);
+      } catch (err) {
+        console.error("Failed to load dashboard:", err);
+      }
+    }
+
+    function renderOverview(agents) {
+      const totalAgents = agents.length;
+      const totalAttempts = agents.reduce((s, a) => s + a.total_attempts, 0);
+      const totalSuccesses = agents.reduce((s, a) => s + a.successes, 0);
+      const totalViolations = agents.reduce((s, a) => s + a.violations, 0);
+      const successRate = totalAttempts > 0 ? Math.round((totalSuccesses / totalAttempts) * 100) : 0;
+
+      document.getElementById("stats-row").innerHTML = `
+        <div class="stat-card"><div class="stat-label">Total Agents</div><div class="stat-value blue">${totalAgents}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Attempts</div><div class="stat-value">${totalAttempts}</div></div>
+        <div class="stat-card"><div class="stat-label">Success Rate</div><div class="stat-value green">${successRate}%</div></div>
+        <div class="stat-card"><div class="stat-label">Total Violations</div><div class="stat-value red">${totalViolations}</div></div>
+      `;
+
+      const tableEl = document.getElementById("agents-table");
+      if (agents.length === 0) {
+        tableEl.innerHTML = '<div class="empty-state">No agents registered yet.</div>';
+        return;
+      }
+
+      let html = `<table>
+        <thead><tr><th>Name</th><th>Email</th><th>Attempts</th><th>Successes</th><th>Violations</th><th>Success Rate</th></tr></thead>
+        <tbody>`;
+
+      agents.forEach(a => {
+        const rate = a.total_attempts > 0 ? Math.round((a.successes / a.total_attempts) * 100) : 0;
+        const rateBadge = rate >= 70 ? "badge-green" : rate >= 40 ? "badge-orange" : a.total_attempts === 0 ? "badge-gray" : "badge-red";
+        html += `<tr class="clickable" onclick="loadAgentDetail(${a.id})">
+          <td><strong>${esc(a.name)}</strong></td>
+          <td>${esc(a.email)}</td>
+          <td>${a.total_attempts}</td>
+          <td>${a.successes}</td>
+          <td>${a.violations}</td>
+          <td><span class="badge ${rateBadge}">${a.total_attempts === 0 ? "No data" : rate + "%"}</span></td>
+        </tr>`;
+      });
+
+      html += "</tbody></table>";
+      tableEl.innerHTML = html;
+    }
+
+    async function loadAgentDetail(agentId) {
+      document.getElementById("view-overview").style.display = "none";
+      document.getElementById("view-detail").style.display = "block";
+
+      try {
+        const [detailRes, attemptsRes] = await Promise.all([
+          fetch(`/api/admin/agents/${agentId}`),
+          fetch(`/api/admin/agents/${agentId}/attempts`),
+        ]);
+        const detail = await detailRes.json();
+        const attempts = await attemptsRes.json();
+        renderAgentDetail(detail, attempts);
+      } catch (err) {
+        console.error("Failed to load agent detail:", err);
+      }
+    }
+
+    function renderAgentDetail(detail, attempts) {
+      const { user, stats, violations, personaProgress } = detail;
+
+      document.getElementById("detail-header").innerHTML = `
+        <div class="detail-name">${esc(user.name)}</div>
+        <div class="detail-email">${esc(user.email)} &middot; Joined ${formatDate(user.created_at)}</div>
+      `;
+
+      // Stats
+      const successRate = stats.total_attempts > 0 ? Math.round((stats.successes / stats.total_attempts) * 100) : 0;
+      document.getElementById("detail-stats").innerHTML = `
+        <div class="stat-card"><div class="stat-label">Total Attempts</div><div class="stat-value">${stats.total_attempts}</div></div>
+        <div class="stat-card"><div class="stat-label">Successes</div><div class="stat-value green">${stats.successes}</div></div>
+        <div class="stat-card"><div class="stat-label">Violations</div><div class="stat-value red">${stats.violations}</div></div>
+        <div class="stat-card"><div class="stat-label">Success Rate</div><div class="stat-value ${successRate >= 50 ? "green" : "red"}">${successRate}%</div></div>
+        <div class="stat-card"><div class="stat-label">Furthest Section</div><div class="stat-value blue">${stats.furthest_section || "—"}</div></div>
+      `;
+
+      // Actionable insight
+      const insightEl = document.getElementById("detail-insight");
+      if (violations.length > 0) {
+        const topViolation = violations[0];
+        const label = VIOLATION_LABELS[topViolation.violation_type] || topViolation.violation_type;
+        insightEl.innerHTML = `<div class="insight-card">
+          <h4>Coaching Insight</h4>
+          <p>${esc(user.name)} most frequently triggers <strong>${esc(label)}</strong> (${topViolation.count} time${topViolation.count > 1 ? "s" : ""}). Focus coaching on this area to improve their call structure adherence.</p>
+        </div>`;
+      } else if (stats.total_attempts === 0) {
+        insightEl.innerHTML = `<div class="insight-card">
+          <h4>No Activity</h4>
+          <p>${esc(user.name)} hasn't completed any training calls yet. Encourage them to start with the simulator.</p>
+        </div>`;
+      } else {
+        insightEl.innerHTML = "";
+      }
+
+      // Persona progress
+      const personaPanel = document.getElementById("detail-personas");
+      if (personaProgress.length > 0) {
+        let pHtml = '<div class="panel-header">Progress by Persona</div><table>';
+        pHtml += "<thead><tr><th>Persona</th><th>Attempts</th><th>Successes</th><th>Furthest Section</th><th>Progress</th></tr></thead><tbody>";
+        personaProgress.forEach(p => {
+          const pct = p.furthest_section ? Math.round((p.furthest_section / 20) * 100) : 0;
+          const barColor = pct >= 80 ? "var(--green)" : pct >= 40 ? "var(--orange)" : "var(--red)";
+          pHtml += `<tr>
+            <td><strong>${esc(p.persona_name)}</strong></td>
+            <td>${p.attempts}</td>
+            <td>${p.successes}</td>
+            <td>${p.furthest_section ? `S${p.furthest_section} — ${SECTION_NAMES[p.furthest_section] || ""}` : "—"}</td>
+            <td style="min-width:120px;"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${barColor};"></div></div></td>
+          </tr>`;
+        });
+        pHtml += "</tbody></table>";
+        personaPanel.innerHTML = pHtml;
+      } else {
+        personaPanel.innerHTML = '<div class="panel-header">Progress by Persona</div><div class="empty-state">No attempts yet.</div>';
+      }
+
+      // Violation breakdown
+      const violPanel = document.getElementById("detail-violations");
+      if (violations.length > 0) {
+        let vHtml = '<div class="panel-header">Violation Breakdown</div><table>';
+        vHtml += "<thead><tr><th>Violation Type</th><th>Count</th></tr></thead><tbody>";
+        violations.forEach(v => {
+          const label = VIOLATION_LABELS[v.violation_type] || v.violation_type;
+          vHtml += `<tr><td>${esc(label)}</td><td><span class="badge badge-red">${v.count}</span></td></tr>`;
+        });
+        vHtml += "</tbody></table>";
+        violPanel.innerHTML = vHtml;
+      } else {
+        violPanel.innerHTML = '<div class="panel-header">Violation Breakdown</div><div class="empty-state">No violations recorded.</div>';
+      }
+
+      // Recent attempts
+      const attPanel = document.getElementById("detail-attempts");
+      if (attempts.length > 0) {
+        let aHtml = '<div class="panel-header">Recent Attempts</div><table>';
+        aHtml += "<thead><tr><th>Date</th><th>Persona</th><th>Result</th><th>Section Reached</th><th>Details</th><th>Duration</th></tr></thead><tbody>";
+        attempts.slice(0, 50).forEach(a => {
+          const resultBadge = a.result === "success" ? "badge-green" : a.result === "violation" ? "badge-red" : "badge-gray";
+          const resultLabel = a.result === "success" ? "Success" : a.result === "violation" ? "Violation" : "Incomplete";
+          const sectionLabel = a.section_reached ? `S${a.section_reached} — ${SECTION_NAMES[a.section_reached] || ""}` : "—";
+          const details = a.violation_type ? (VIOLATION_LABELS[a.violation_type] || a.violation_type) : (a.description || "—");
+          const duration = a.duration_seconds ? formatDuration(a.duration_seconds) : "—";
+          aHtml += `<tr>
+            <td>${formatDate(a.created_at)}</td>
+            <td>${esc(a.persona_name)}</td>
+            <td><span class="badge ${resultBadge}">${resultLabel}</span></td>
+            <td>${sectionLabel}</td>
+            <td class="violation-type">${esc(details)}</td>
+            <td>${duration}</td>
+          </tr>`;
+        });
+        aHtml += "</tbody></table>";
+        attPanel.innerHTML = aHtml;
+      } else {
+        attPanel.innerHTML = '<div class="panel-header">Recent Attempts</div><div class="empty-state">No attempts yet.</div>';
+      }
+    }
+
+    // Back button
+    document.getElementById("btn-back-to-list").addEventListener("click", loadDashboard);
+
+    // Helpers
+    function esc(str) {
+      if (!str) return "";
+      const d = document.createElement("div");
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return "—";
+      const d = new Date(dateStr + "Z");
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    function formatDuration(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}:${String(s).padStart(2, "0")}`;
+    }
+
+    // Init
+    loadDashboard();
+  </script>
+</body>
+</html>

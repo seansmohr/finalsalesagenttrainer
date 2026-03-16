@@ -1,11 +1,43 @@
 const express = require("express");
 const path = require("path");
+const session = require("express-session");
+const SqliteStore = require("better-sqlite3-session-store")(session);
 const Retell = require("retell-sdk").default;
 const personas = require("./personas");
 const { buildAgentPrompt } = require("./prompt-builder");
+const {
+  db,
+  createUser,
+  findUserByEmail,
+  findUserById,
+  verifyPassword,
+  saveAttempt,
+  getAttemptsByUser,
+  getAttemptById,
+  getAllAgentsSummary,
+  getAgentStats,
+  getAgentViolationBreakdown,
+  getAgentPersonaProgress,
+} = require("./db");
 
 const app = express();
 app.use(express.json());
+
+// ── Sessions ──
+app.use(
+  session({
+    store: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 900000 } }),
+    secret: process.env.SESSION_SECRET || "mohr-training-secret-change-me",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      httpOnly: true,
+      sameSite: "lax",
+    },
+  })
+);
+
 app.use(express.static(path.join(__dirname, "public")));
 
 const retellClient = new Retell({
@@ -15,8 +47,93 @@ const retellClient = new Retell({
 // In-memory cache: personaId -> { agentId, llmId }
 const agentCache = {};
 
+// ── Auth middleware ──
+function requireAuth(req, res, next) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  if (req.session.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  next();
+}
+
+// ── Auth routes ──
+
+// POST /api/register
+app.post("/api/register", (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Name, email, and password are required" });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    }
+    const existing = findUserByEmail(email);
+    if (existing) {
+      return res.status(409).json({ error: "An account with this email already exists" });
+    }
+    const userId = createUser(name, email, password, "agent");
+    req.session.userId = userId;
+    req.session.role = "agent";
+    res.json({ id: userId, name, email, role: "agent" });
+  } catch (err) {
+    console.error("Register error:", err);
+    res.status(500).json({ error: "Registration failed" });
+  }
+});
+
+// POST /api/login
+app.post("/api/login", (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+    const user = findUserByEmail(email);
+    if (!user || !verifyPassword(password, user.password_hash)) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+    req.session.userId = user.id;
+    req.session.role = user.role;
+    res.json({ id: user.id, name: user.name, email: user.email, role: user.role });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// POST /api/logout
+app.post("/api/logout", (req, res) => {
+  req.session.destroy(() => {
+    res.json({ ok: true });
+  });
+});
+
+// GET /api/me — current user
+app.get("/api/me", (req, res) => {
+  if (!req.session.userId) {
+    return res.json({ user: null });
+  }
+  const user = findUserById(req.session.userId);
+  if (!user) {
+    return res.json({ user: null });
+  }
+  res.json({ user });
+});
+
+// ── Existing routes (now require auth) ──
+
 // GET /api/personas — return persona list for frontend
-app.get("/api/personas", (req, res) => {
+app.get("/api/personas", requireAuth, (req, res) => {
   const list = personas.map((p) => ({
     id: p.id,
     name: p.name,
@@ -29,7 +146,7 @@ app.get("/api/personas", (req, res) => {
 });
 
 // POST /api/create-call — create a Retell web call for a persona
-app.post("/api/create-call", async (req, res) => {
+app.post("/api/create-call", requireAuth, async (req, res) => {
   try {
     const { personaId } = req.body;
     if (!personaId) {
@@ -105,7 +222,7 @@ app.post("/api/clear-cache", (req, res) => {
 });
 
 // GET /api/call/:callId — fetch call details for post-call feedback
-app.get("/api/call/:callId", async (req, res) => {
+app.get("/api/call/:callId", requireAuth, async (req, res) => {
   try {
     const call = await retellClient.call.retrieve(req.params.callId);
     res.json({
@@ -124,6 +241,75 @@ app.get("/api/call/:callId", async (req, res) => {
       details: err.message,
     });
   }
+});
+
+// ── Attempt tracking ──
+
+// POST /api/attempts — save a call attempt result
+app.post("/api/attempts", requireAuth, (req, res) => {
+  try {
+    const { personaId, personaName, result, violationType, sectionReached, expectedSection, description, durationSeconds, transcript } = req.body;
+    if (!personaId || !result) {
+      return res.status(400).json({ error: "personaId and result are required" });
+    }
+    const attemptId = saveAttempt({
+      userId: req.session.userId,
+      personaId,
+      personaName: personaName || "Unknown",
+      result,
+      violationType,
+      sectionReached,
+      expectedSection,
+      description,
+      durationSeconds,
+      transcript,
+    });
+    res.json({ id: attemptId });
+  } catch (err) {
+    console.error("Error saving attempt:", err);
+    res.status(500).json({ error: "Failed to save attempt" });
+  }
+});
+
+// GET /api/my-attempts — get current user's attempts
+app.get("/api/my-attempts", requireAuth, (req, res) => {
+  const attempts = getAttemptsByUser(req.session.userId);
+  res.json(attempts);
+});
+
+// ── Admin routes ──
+
+// GET /api/admin/agents — all agents with summary stats
+app.get("/api/admin/agents", requireAdmin, (req, res) => {
+  const agents = getAllAgentsSummary();
+  res.json(agents);
+});
+
+// GET /api/admin/agents/:id — detailed stats for one agent
+app.get("/api/admin/agents/:id", requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const user = findUserById(userId);
+  if (!user) {
+    return res.status(404).json({ error: "Agent not found" });
+  }
+  const stats = getAgentStats(userId);
+  const violations = getAgentViolationBreakdown(userId);
+  const personaProgress = getAgentPersonaProgress(userId);
+  res.json({ user, stats, violations, personaProgress });
+});
+
+// GET /api/admin/agents/:id/attempts — all attempts for one agent
+app.get("/api/admin/agents/:id/attempts", requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const attempts = getAttemptsByUser(userId);
+  res.json(attempts);
+});
+
+// ── Page routes ──
+
+// Dashboard page (admin only — auth checked client-side)
+app.get("/dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "dashboard.html"));
 });
 
 // Catchall — serve index.html
