@@ -648,6 +648,28 @@
     import { RetellWebClient } from "https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/+esm";
 
     (async function () {
+      // ── DOM refs (must be declared before auth logic) ──
+      const screenSelect = document.getElementById("screen-select");
+      const screenCall = document.getElementById("screen-call");
+      const screenFeedback = document.getElementById("screen-feedback");
+      const personaGrid = document.getElementById("persona-grid");
+      const callAvatar = document.getElementById("call-avatar");
+      const callName = document.getElementById("call-name");
+      const callTagline = document.getElementById("call-tagline");
+      const callStatus = document.getElementById("call-status");
+      const callTimer = document.getElementById("call-timer");
+      const btnEnd = document.getElementById("btn-end");
+      const pulseRing = document.getElementById("pulse-ring");
+      const micPulse = document.getElementById("mic-pulse");
+      const feedbackResult = document.getElementById("feedback-result");
+      const transcriptToggle = document.getElementById("transcript-toggle");
+      const transcriptBody = document.getElementById("transcript-body");
+      const toggleArrow = document.getElementById("toggle-arrow");
+      const cooldownTimerEl = document.getElementById("cooldown-timer");
+      const btnTryAgain = document.getElementById("btn-try-again");
+      const loadingOverlay = document.getElementById("loading-overlay");
+      const errorToast = document.getElementById("error-toast");
+
       // ── Auth state ──
       let currentUser = null;
       let isRegisterMode = false;
@@ -738,6 +760,18 @@
         hideAuthScreen();
         headerUser.style.display = "flex";
         headerUserName.textContent = currentUser.name;
+        // Show dashboard link for admins
+        const existingLink = document.getElementById("admin-dashboard-link");
+        if (existingLink) existingLink.remove();
+        if (currentUser.role === "admin") {
+          const link = document.createElement("a");
+          link.id = "admin-dashboard-link";
+          link.href = "/dashboard";
+          link.textContent = "Dashboard";
+          link.className = "btn-logout";
+          link.style.textDecoration = "none";
+          headerUser.insertBefore(link, headerUserName.nextSibling);
+        }
         showScreen("select");
         loadPersonas();
       }
@@ -799,28 +833,6 @@
       let callStartTime = null;
       let cooldownInterval = null;
       let lastTranscript = "";
-
-      // DOM refs
-      const screenSelect = document.getElementById("screen-select");
-      const screenCall = document.getElementById("screen-call");
-      const screenFeedback = document.getElementById("screen-feedback");
-      const personaGrid = document.getElementById("persona-grid");
-      const callAvatar = document.getElementById("call-avatar");
-      const callName = document.getElementById("call-name");
-      const callTagline = document.getElementById("call-tagline");
-      const callStatus = document.getElementById("call-status");
-      const callTimer = document.getElementById("call-timer");
-      const btnEnd = document.getElementById("btn-end");
-      const pulseRing = document.getElementById("pulse-ring");
-      const micPulse = document.getElementById("mic-pulse");
-      const feedbackResult = document.getElementById("feedback-result");
-      const transcriptToggle = document.getElementById("transcript-toggle");
-      const transcriptBody = document.getElementById("transcript-body");
-      const toggleArrow = document.getElementById("toggle-arrow");
-      const cooldownTimerEl = document.getElementById("cooldown-timer");
-      const btnTryAgain = document.getElementById("btn-try-again");
-      const loadingOverlay = document.getElementById("loading-overlay");
-      const errorToast = document.getElementById("error-toast");
 
       // Init — auth check above handles loading
 
