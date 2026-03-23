@@ -5,6 +5,7 @@ const SqliteStore = require("better-sqlite3-session-store")(session);
 const Retell = require("retell-sdk").default;
 const personas = require("./personas");
 const { buildAgentPrompt } = require("./prompt-builder");
+const { analyzeTranscript } = require("./transcript-analyzer");
 const {
   db,
   createUser,
@@ -324,6 +325,54 @@ app.get("/api/admin/agents/:id/attempts", requireAdmin, (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const attempts = getAttemptsByUser(userId);
   res.json(attempts);
+});
+
+// POST /api/admin/reanalyze — re-analyze incomplete attempts that have transcripts
+app.post("/api/admin/reanalyze", requireAdmin, (req, res) => {
+  try {
+    const incompleteAttempts = db.prepare(
+      "SELECT id, transcript, duration_seconds FROM call_attempts WHERE result = 'incomplete' AND transcript IS NOT NULL AND transcript != ''"
+    ).all();
+
+    let updated = 0;
+    const updateStmt = db.prepare(
+      "UPDATE call_attempts SET result = 'violation', violation_type = ?, section_reached = ?, expected_section = ?, description = ? WHERE id = ?"
+    );
+
+    for (const attempt of incompleteAttempts) {
+      // Only re-analyze calls that were long enough to have had real conversation (>60s)
+      if (attempt.duration_seconds && attempt.duration_seconds < 30) continue;
+
+      const hasGoodbye = attempt.transcript.includes("I am going to pass") || attempt.transcript.includes("going to pass");
+      const analyzed = analyzeTranscript(attempt.transcript);
+
+      if (analyzed) {
+        updateStmt.run(
+          analyzed.type,
+          analyzed.currentSection,
+          analyzed.expectedSection,
+          analyzed.description + " (retroactively analyzed)",
+          attempt.id
+        );
+        updated++;
+      } else if (hasGoodbye) {
+        // Has goodbye but couldn't determine specific violation — still mark as violation
+        updateStmt.run(
+          null,
+          null,
+          null,
+          "Structure violation detected (goodbye phrase found) but specific violation could not be inferred from transcript",
+          attempt.id
+        );
+        updated++;
+      }
+    }
+
+    res.json({ total: incompleteAttempts.length, updated });
+  } catch (err) {
+    console.error("Reanalyze error:", err);
+    res.status(500).json({ error: "Failed to re-analyze attempts" });
+  }
 });
 
 // ── Page routes ──

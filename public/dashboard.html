@@ -245,6 +245,11 @@
     <!-- Overview View -->
     <div id="view-overview" style="display:none;">
       <div id="stats-row" class="stats-row"></div>
+      <div id="reanalyze-banner" style="display:none;" class="insight-card" style="margin-bottom:16px;">
+        <h4>Incomplete Attempts Detected</h4>
+        <p id="reanalyze-text">Some call attempts are marked "Incomplete" but may contain violation data in their transcripts.</p>
+        <button onclick="reanalyzeAttempts()" id="btn-reanalyze" style="margin-top:10px;padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;">Re-analyze Incomplete Calls</button>
+      </div>
       <div class="panel">
         <div class="panel-header">
           All Agents
@@ -325,7 +330,22 @@
       const totalAttempts = agents.reduce((s, a) => s + a.total_attempts, 0);
       const totalSuccesses = agents.reduce((s, a) => s + a.successes, 0);
       const totalViolations = agents.reduce((s, a) => s + a.violations, 0);
+      const totalIncompletes = agents.reduce((s, a) => s + (a.incompletes || 0), 0);
       const successRate = totalAttempts > 0 ? Math.round((totalSuccesses / totalAttempts) * 100) : 0;
+
+      // Show re-analyze banner if there are incomplete attempts
+      const banner = document.getElementById("reanalyze-banner");
+      if (totalIncompletes > 0) {
+        banner.style.display = "block";
+        document.getElementById("reanalyze-text").textContent =
+          `${totalIncompletes} call attempt${totalIncompletes > 1 ? "s are" : " is"} marked "Incomplete" and may contain violation data in their transcripts. Click below to analyze them.`;
+        const btn = document.getElementById("btn-reanalyze");
+        btn.disabled = false;
+        btn.textContent = "Re-analyze Incomplete Calls";
+        btn.style.background = "var(--blue)";
+      } else {
+        banner.style.display = "none";
+      }
 
       document.getElementById("stats-row").innerHTML = `
         <div class="stat-card"><div class="stat-label">Total Agents</div><div class="stat-value blue">${totalAgents}</div></div>
@@ -341,10 +361,11 @@
       }
 
       let html = `<table>
-        <thead><tr><th>Name</th><th>Email</th><th>Attempts</th><th>Successes</th><th>Violations</th><th>Success Rate</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Attempts</th><th>Successes</th><th>Violations</th><th>Needs Review</th><th>Success Rate</th></tr></thead>
         <tbody>`;
 
       agents.forEach(a => {
+        const incompletes = a.incompletes || 0;
         const rate = a.total_attempts > 0 ? Math.round((a.successes / a.total_attempts) * 100) : 0;
         const rateBadge = rate >= 70 ? "badge-green" : rate >= 40 ? "badge-orange" : a.total_attempts === 0 ? "badge-gray" : "badge-red";
         html += `<tr class="clickable" onclick="loadAgentDetail(${a.id})">
@@ -353,12 +374,37 @@
           <td>${a.total_attempts}</td>
           <td>${a.successes}</td>
           <td>${a.violations}</td>
+          <td>${incompletes > 0 ? `<span class="badge badge-orange">${incompletes}</span>` : "0"}</td>
           <td><span class="badge ${rateBadge}">${a.total_attempts === 0 ? "No data" : rate + "%"}</span></td>
         </tr>`;
       });
 
       html += "</tbody></table>";
       tableEl.innerHTML = html;
+    }
+
+    async function reanalyzeAttempts() {
+      const btn = document.getElementById("btn-reanalyze");
+      btn.disabled = true;
+      btn.textContent = "Analyzing...";
+      try {
+        const res = await fetch("/api/admin/reanalyze", { method: "POST" });
+        const data = await res.json();
+        if (data.updated > 0) {
+          btn.textContent = `Updated ${data.updated} of ${data.total} attempts`;
+          btn.style.background = "var(--green)";
+          // Reload dashboard after short delay to show updated data
+          setTimeout(() => loadDashboard(), 1500);
+        } else {
+          btn.textContent = "No new data to analyze";
+          btn.style.background = "var(--gray-400)";
+        }
+      } catch (err) {
+        btn.textContent = "Analysis failed — try again";
+        btn.disabled = false;
+        btn.style.background = "var(--red)";
+        console.error("Reanalyze error:", err);
+      }
     }
 
     async function loadAgentDetail(agentId) {
@@ -388,10 +434,12 @@
 
       // Stats
       const successRate = stats.total_attempts > 0 ? Math.round((stats.successes / stats.total_attempts) * 100) : 0;
+      const incompletes = stats.incompletes || 0;
       document.getElementById("detail-stats").innerHTML = `
         <div class="stat-card"><div class="stat-label">Total Attempts</div><div class="stat-value">${stats.total_attempts}</div></div>
         <div class="stat-card"><div class="stat-label">Successes</div><div class="stat-value green">${stats.successes}</div></div>
         <div class="stat-card"><div class="stat-label">Violations</div><div class="stat-value red">${stats.violations}</div></div>
+        ${incompletes > 0 ? `<div class="stat-card"><div class="stat-label">Needs Review</div><div class="stat-value" style="color:var(--orange);">${incompletes}</div></div>` : ""}
         <div class="stat-card"><div class="stat-label">Success Rate</div><div class="stat-value ${successRate >= 50 ? "green" : "red"}">${successRate}%</div></div>
         <div class="stat-card"><div class="stat-label">Furthest Section</div><div class="stat-value blue">${stats.furthest_section || "—"}</div></div>
       `;
@@ -457,8 +505,19 @@
         let aHtml = '<div class="panel-header">Recent Attempts</div><table>';
         aHtml += "<thead><tr><th>Date</th><th>Persona</th><th>Result</th><th>Section Reached</th><th>Details</th><th>Duration</th></tr></thead><tbody>";
         attempts.slice(0, 50).forEach(a => {
-          const resultBadge = a.result === "success" ? "badge-green" : a.result === "violation" ? "badge-red" : "badge-gray";
-          const resultLabel = a.result === "success" ? "Success" : a.result === "violation" ? "Violation" : "Incomplete";
+          let resultBadge, resultLabel;
+          if (a.result === "success") {
+            resultBadge = "badge-green";
+            resultLabel = "Success";
+          } else if (a.result === "violation") {
+            resultBadge = "badge-red";
+            resultLabel = "Violation";
+          } else {
+            // Incomplete — flag long calls as needing review
+            const isLongCall = a.duration_seconds && a.duration_seconds >= 60;
+            resultBadge = isLongCall ? "badge-orange" : "badge-gray";
+            resultLabel = isLongCall ? "Needs Review" : "Incomplete";
+          }
           const sectionLabel = a.section_reached ? `S${a.section_reached} — ${SECTION_NAMES[a.section_reached] || ""}` : "—";
           const details = a.violation_type ? (VIOLATION_LABELS[a.violation_type] || a.violation_type) : (a.description || "—");
           const duration = a.duration_seconds ? formatDuration(a.duration_seconds) : "—";
