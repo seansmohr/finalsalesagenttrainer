@@ -1101,6 +1101,184 @@
         return "";
       }
 
+      // ── Transcript Analysis — infer violation when marker is missing ──
+      function analyzeTranscriptForViolation(transcript) {
+        // Build separate agent and client text from transcript entries
+        let agentLines = [];
+        let clientLines = [];
+        let allText = "";
+        let orderedUtterances = []; // {role, content, index}
+
+        if (Array.isArray(transcript)) {
+          transcript.forEach((entry, i) => {
+            const content = (entry.content || "").toLowerCase();
+            const role = entry.role === "agent" ? "client" : "agent"; // Retell flips roles
+            if (role === "agent") agentLines.push(content);
+            else clientLines.push(content);
+            orderedUtterances.push({ role, content, index: i });
+          });
+          allText = transcript.map(e => (e.content || "").toLowerCase()).join(" ");
+        } else {
+          allText = (typeof transcript === "string" ? transcript : "").toLowerCase();
+        }
+
+        if (!allText || allText.length < 50) return null;
+
+        const agentText = agentLines.join(" ");
+
+        // ── Detection patterns for each section being covered ──
+        const sectionSignals = {
+          1: /\b(scheduled|catch you at a good time|call scheduled|how are you|good (morning|afternoon|evening))\b/,
+          2: /\b(webinar|watch(ed)?|questions? (from|about) (the|it)|takeaway|any other questions)\b/,
+          3: /\b(permission|do you mind if i ask|client needs assessment|mind if i ask|my own questions)\b/,
+          4: /\b(date of birth|zip code|d\.?o\.?b|birthday|currently working|employer|type of insurance)\b/,
+          5: /\b(monthly premium|deductible|out[- ]of[- ]pocket|dental|vision|paying.*month|how much.*insurance)\b/,
+          6: /\b(health history|hospital stay|surger|medication|past (5|five) years|anything serious)\b/,
+          7: /\b(cancer|heart attack|stroke|family history.*(cancer|heart|stroke)|c\.?h\.?s)\b/,
+          8: /\b(skilled nursing|nursing facilit|97[- ]?day|nursing home)\b/,
+          9: /\b(part b premium|tax(es)?.*fil(e|ing)|income|single or joint|filed.*single)\b/,
+          10: /\b(wraps up|needs assessment|answer.*questions.*earlier|parked questions|refresher|levels? of coverage)\b/,
+          11: /\b(part a.*(hospital|free)|part b.*(outpatient|\$202|\$283)|1[,.]?736|medicare foundation)\b/,
+          12: /\b(medicare advantage|medicare supplement|advantage vs|supplement vs|copay|network|5[- ]star|premium plan)\b/,
+          13: /\b(umbrella coverage|level (3|three)|non[- ]medicare[- ]approved|even with.*(advantage|supplement))\b/,
+          14: /\b(formal recommendation|my recommendation|recommend.*plan|based on everything|total benefit|price.*month|\$\d+.*per month)\b/,
+        };
+
+        // Determine which sections the agent likely covered
+        const coveredSections = new Set();
+        for (const [section, pattern] of Object.entries(sectionSignals)) {
+          if (pattern.test(agentText)) {
+            coveredSections.add(parseInt(section));
+          }
+        }
+
+        // ── Detect specific violations ──
+
+        // PREMATURE_RECOMMENDATION: Agent recommends before completing discovery (4-9)
+        const discoveryComplete = [4, 5, 6, 7, 8, 9].every(s => coveredSections.has(s));
+        const educationComplete = [11, 12, 13].every(s => coveredSections.has(s));
+        const hasRecommendation = coveredSections.has(14);
+        const recommendationPattern = /\b(recommend|recommendation|my.*suggestion|i('d| would) (suggest|recommend)|based on (everything|what)|the (plan|coverage) (i|we) recommend|price.*would be|total benefit)\b/;
+        const agentRecommended = recommendationPattern.test(agentText);
+
+        if (agentRecommended && !discoveryComplete) {
+          const missingSections = [4, 5, 6, 7, 8, 9].filter(s => !coveredSections.has(s));
+          const lastCovered = Math.max(...([...coveredSections].filter(s => s <= 9)), 1);
+          const nextExpected = missingSections.length > 0 ? missingSections[0] : lastCovered + 1;
+          return {
+            type: "PREMATURE_RECOMMENDATION",
+            currentSection: lastCovered,
+            expectedSection: Math.min(nextExpected, 9),
+            description: `jumped to making a recommendation before completing all discovery sections. Missing sections: ${missingSections.map(s => s + " (" + (SECTION_DATA[s] || {}).name + ")").join(", ")}`,
+          };
+        }
+
+        if (agentRecommended && discoveryComplete && !educationComplete) {
+          const missingSections = [11, 12, 13].filter(s => !coveredSections.has(s));
+          const lastCovered = Math.max(...([...coveredSections].filter(s => s <= 13)), 10);
+          const nextExpected = missingSections.length > 0 ? missingSections[0] : 11;
+          return {
+            type: "PREMATURE_RECOMMENDATION",
+            currentSection: lastCovered,
+            expectedSection: nextExpected,
+            description: `jumped to making a recommendation before completing education sections. Missing sections: ${missingSections.map(s => s + " (" + (SECTION_DATA[s] || {}).name + ")").join(", ")}`,
+          };
+        }
+
+        // PREMATURE_ENROLLMENT: Agent tries to enroll before education
+        const enrollmentPattern = /\b(enroll|sign.*up|application|let('s| us) get (you |this )?(started|going|enrolled)|ready to (get started|move forward))\b/;
+        const agentEnrolled = enrollmentPattern.test(agentText);
+        if (agentEnrolled && !educationComplete) {
+          const lastCovered = Math.max(...[...coveredSections], 1);
+          return {
+            type: "PREMATURE_ENROLLMENT",
+            currentSection: lastCovered,
+            expectedSection: [11, 12, 13].find(s => !coveredSections.has(s)) || 11,
+            description: "tried to move into enrollment before completing the education sections (11, 12, 13)",
+          };
+        }
+
+        // SKIPPED_PERMISSION: Agent asks personal questions without section 3
+        const askedPersonalQuestions = coveredSections.has(4) || coveredSections.has(5) || coveredSections.has(6);
+        if (askedPersonalQuestions && !coveredSections.has(3)) {
+          return {
+            type: "SKIPPED_PERMISSION",
+            currentSection: 2,
+            expectedSection: 3,
+            description: "jumped into personal discovery questions without first asking permission to ask questions (section 3)",
+          };
+        }
+
+        // ANSWERED_PARKED_QUESTIONS: Agent explains Medicare during question loop
+        const earlyMedicareExplanation = /\b(medicare (is|works|covers)|part (a|b) (is|covers)|supplement (is|covers|plan)|advantage (is|covers|plan))\b/;
+        if (coveredSections.has(2) && !coveredSections.has(10) && !coveredSections.has(11)) {
+          // Check if agent explained Medicare concepts before section 10
+          const questionLoopEnd = agentText.indexOf("needs assessment") !== -1 ? agentText.indexOf("needs assessment") : agentText.length;
+          const earlyText = agentText.substring(0, Math.min(questionLoopEnd, agentText.length / 3));
+          if (earlyMedicareExplanation.test(earlyText)) {
+            return {
+              type: "ANSWERED_PARKED_QUESTIONS",
+              currentSection: 2,
+              expectedSection: 3,
+              description: "answered webinar questions by explaining Medicare concepts instead of parking them for later",
+            };
+          }
+        }
+
+        // SSN_WITHOUT_EXPLANATION: Asked for SSN without explaining why
+        const ssnPattern = /\b(social security|ssn|social.*number|bank (account|info|routing)|routing number)\b/;
+        const ssnExplanationPattern = /\b(reason.*(social|ssn|bank)|why.*(need|ask).*(social|ssn|bank)|(social|ssn|bank).*because|medical records|underwriting|fraud prevention)\b/;
+        if (ssnPattern.test(agentText) && !ssnExplanationPattern.test(agentText)) {
+          return {
+            type: "SSN_WITHOUT_EXPLANATION",
+            currentSection: 18,
+            expectedSection: 18,
+            description: "asked for sensitive information (SSN or bank details) without first explaining why it is needed",
+          };
+        }
+
+        // MAJOR_ORDER_SKIP: Detect big jumps in covered sections
+        const sortedCovered = [...coveredSections].sort((a, b) => a - b);
+        for (let i = 1; i < sortedCovered.length; i++) {
+          const gap = sortedCovered[i] - sortedCovered[i - 1];
+          if (gap > 2) {
+            return {
+              type: "MAJOR_ORDER_SKIP",
+              currentSection: sortedCovered[i - 1],
+              expectedSection: sortedCovered[i - 1] + 1,
+              description: `jumped from Section ${sortedCovered[i - 1]} (${(SECTION_DATA[sortedCovered[i - 1]] || {}).name || "Unknown"}) to Section ${sortedCovered[i]} (${(SECTION_DATA[sortedCovered[i]] || {}).name || "Unknown"}), skipping ${gap - 1} section(s) in between`,
+            };
+          }
+        }
+
+        // SKIPPED_MAJOR_SECTION: Check for gaps in discovery
+        if (coveredSections.has(4) && coveredSections.has(9)) {
+          const skipped = [5, 6, 7, 8].filter(s => !coveredSections.has(s));
+          if (skipped.length > 0) {
+            return {
+              type: "SKIPPED_MAJOR_SECTION",
+              currentSection: skipped[0] - 1,
+              expectedSection: skipped[0],
+              description: `skipped Section ${skipped[0]} (${(SECTION_DATA[skipped[0]] || {}).name || "Unknown"}) during discovery`,
+            };
+          }
+        }
+
+        // Could not determine — return a best-effort analysis based on what we see
+        if (sortedCovered.length > 0) {
+          const lastSection = sortedCovered[sortedCovered.length - 1];
+          const nextExpected = lastSection + 1;
+          return {
+            type: "SKIPPED_MAJOR_SECTION",
+            currentSection: lastSection,
+            expectedSection: nextExpected <= 20 ? nextExpected : lastSection,
+            description: `went off-structure around Section ${lastSection} (${(SECTION_DATA[lastSection] || {}).name || "Unknown"}). Sections detected: ${sortedCovered.join(", ")}`,
+          };
+        }
+
+        return null; // truly unable to determine anything
+      }
+
       function displayFeedback(transcript) {
         let transcriptHtml = "";
 
@@ -1137,25 +1315,53 @@
             parsedSuccessData.summary,
           );
         } else {
-          // Fallback: no marker captured from either source
+          // Fallback: no marker captured from either source — analyze transcript
           const fullText = extractFullText(transcript);
           const hasGoodbye = fullText.includes("I am going to pass") || fullText.includes("going to pass");
 
           feedbackResult.className = "feedback-result failure";
           if (hasGoodbye) {
-            feedbackResult.innerHTML = `
-              <div class="feedback-section">
-                <div class="feedback-label">Result</div>
-                <p class="feedback-highlight">Structure Violation Detected</p>
-              </div>
-              <div class="feedback-section">
-                <div class="feedback-label">What Happened</div>
-                <p>The training persona ended the call due to a structure violation. The specific violation details could not be captured — review the transcript below to identify where you went off-structure.</p>
-              </div>
-              <div class="feedback-section">
-                <div class="feedback-label">How to Fix This</div>
-                <p>Review the 20-section call structure in the Sales Call Cheat Sheet. Make sure you follow the sections in order: Open (1-3), Discover (4-9), Educate (10-13), Recommend (14-15), Enroll (16-20). Each section must be completed before moving to the next.</p>
-              </div>`;
+            // Try to infer the violation from transcript content
+            const analyzed = analyzeTranscriptForViolation(transcript);
+            if (analyzed) {
+              // We inferred the violation — show full actionable feedback
+              feedbackResult.innerHTML = buildViolationFeedback(
+                analyzed.type,
+                analyzed.currentSection,
+                analyzed.expectedSection,
+                analyzed.description,
+              );
+            } else {
+              // Truly could not determine — show section-aware fallback
+              feedbackResult.innerHTML = `
+                <div class="feedback-section">
+                  <div class="feedback-label">Result</div>
+                  <p class="feedback-highlight">Structure Violation Detected</p>
+                </div>
+                <div class="feedback-section">
+                  <div class="feedback-label">What Happened</div>
+                  <p>The training persona ended the call due to a structure violation. Review the transcript below to identify where you went off-structure.</p>
+                </div>
+                <div class="feedback-section">
+                  <div class="feedback-label">How to Fix This</div>
+                  <p>Open the transcript and find the last topic you discussed before the persona hung up. Then check whether you completed all prior sections in order:</p>
+                  <ul style="margin:8px 0 0 16px; line-height:1.6;">
+                    <li><strong>Sections 1-3 (Open):</strong> Greeting → Webinar questions (parked, not answered) → Permission to ask questions</li>
+                    <li><strong>Sections 4-9 (Discover):</strong> Profile → Costs → Health → CHS exposure → Skilled nursing → Part B income</li>
+                    <li><strong>Sections 10-13 (Educate):</strong> Parked questions transition → Medicare foundation → Plan comparison → Umbrella coverage</li>
+                    <li><strong>Section 14 (Recommend):</strong> Only after ALL discovery AND education are complete</li>
+                  </ul>
+                </div>
+                <div class="feedback-section">
+                  <div class="feedback-label">Common Mistakes at This Stage</div>
+                  <ul style="margin:0 0 0 16px; line-height:1.6;">
+                    <li>Recommending a plan before finishing all 6 discovery sections (4-9)</li>
+                    <li>Skipping education sections (11-13) and jumping straight to recommendation</li>
+                    <li>Skipping a section entirely (e.g., health history or skilled nursing)</li>
+                    <li>Jumping forward by more than one section at a time</li>
+                  </ul>
+                </div>`;
+            }
           } else {
             feedbackResult.innerHTML = `<div class="feedback-section"><p>The call ended before feedback could be generated. This may happen if the call was very short or disconnected early. Try again and stay on the call long enough for the persona to respond.</p></div>`;
           }
@@ -1275,6 +1481,22 @@
             result = "success";
             sectionReached = parsedSuccessData.lastSection;
             description = parsedSuccessData.summary;
+          } else {
+            // Try transcript analysis for better database records
+            const fullText = extractFullText(transcript);
+            const hasGoodbye = fullText.includes("I am going to pass") || fullText.includes("going to pass");
+            if (hasGoodbye) {
+              result = "violation";
+              const analyzed = analyzeTranscriptForViolation(transcript);
+              if (analyzed) {
+                violationType = analyzed.type;
+                sectionReached = analyzed.currentSection;
+                expectedSection = analyzed.expectedSection;
+                description = analyzed.description + " (inferred from transcript)";
+              } else {
+                description = "Structure violation detected but specific details could not be determined";
+              }
+            }
           }
           await fetch("/api/attempts", {
             method: "POST",
