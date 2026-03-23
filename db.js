@@ -99,6 +99,7 @@ function getAgentStats(userId) {
       COUNT(*) AS total_attempts,
       SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END) AS successes,
       SUM(CASE WHEN result = 'violation' THEN 1 ELSE 0 END) AS violations,
+      SUM(CASE WHEN result = 'incomplete' THEN 1 ELSE 0 END) AS incompletes,
       MAX(section_reached) AS furthest_section
     FROM call_attempts
     WHERE user_id = ?
@@ -140,7 +141,8 @@ function getAllAgentsSummary() {
       u.created_at,
       COUNT(ca.id) AS total_attempts,
       SUM(CASE WHEN ca.result = 'success' THEN 1 ELSE 0 END) AS successes,
-      SUM(CASE WHEN ca.result = 'violation' THEN 1 ELSE 0 END) AS violations
+      SUM(CASE WHEN ca.result = 'violation' THEN 1 ELSE 0 END) AS violations,
+      SUM(CASE WHEN ca.result = 'incomplete' THEN 1 ELSE 0 END) AS incompletes
     FROM users u
     LEFT JOIN call_attempts ca ON ca.user_id = u.id
     WHERE u.role = 'agent'
