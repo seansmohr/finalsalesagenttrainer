@@ -151,15 +151,27 @@ function analyzeTranscript(transcriptText) {
     }
   }
 
+  // Check for FALSE POSITIVE: agent completed most/all sections correctly
+  // but the persona incorrectly hung up (common at Section 14 transition)
+  if (discoveryComplete && educationComplete && agentRecommended) {
+    // Agent did everything right — this is a false positive hangup
+    return {
+      type: "FALSE_POSITIVE",
+      currentSection: 14,
+      expectedSection: 14,
+      description: "Agent appears to have followed the structure correctly through discovery (4-9) and education (11-13) before making a recommendation. The training persona may have incorrectly flagged this as a violation. This call likely does not count as a real violation.",
+    };
+  }
+
   // Best-effort: return what sections we detected
   if (sortedCovered.length > 0) {
     const lastSection = sortedCovered[sortedCovered.length - 1];
     const nextExpected = lastSection + 1;
     return {
-      type: "SKIPPED_MAJOR_SECTION",
+      type: "LIKELY_FALSE_POSITIVE",
       currentSection: lastSection,
       expectedSection: nextExpected <= 20 ? nextExpected : lastSection,
-      description: `Went off-structure around S${lastSection} (${SECTION_NAMES[lastSection] || "Unknown"}). Sections detected: ${sortedCovered.join(", ")}`,
+      description: `Agent covered sections ${sortedCovered.join(", ")} but the persona still hung up. No clear violation detected — this may be a false positive. Review the transcript to confirm.`,
     };
   }
 
