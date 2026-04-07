@@ -822,6 +822,8 @@
         SSN_WITHOUT_EXPLANATION: "Always explain WHY you need sensitive information before asking for it. Explain the reason for SSN (medical underwriting) and bank info (fraud prevention) first.",
         SKIPPED_MAJOR_SECTION: "Every section exists for a reason. Skipping a section means you are missing critical information needed for a proper recommendation and enrollment.",
         MAJOR_ORDER_SKIP: "Follow the call structure in order. Each section builds on the previous one. Jumping ahead leaves gaps in understanding.",
+        FALSE_POSITIVE: "It looks like you followed the call structure correctly. The training persona may have ended the call by mistake. This does not count against you — try again.",
+        LIKELY_FALSE_POSITIVE: "Based on transcript analysis, no clear violation was found. The training persona may have ended the call incorrectly. Review the transcript to confirm, and try again.",
       };
 
       // State
@@ -1264,15 +1266,26 @@
           }
         }
 
-        // Could not determine — return a best-effort analysis based on what we see
+        // Check for FALSE POSITIVE: agent completed most/all sections correctly
+        // but the persona incorrectly hung up (common at Section 14 transition)
+        if (discoveryComplete && educationComplete && agentRecommended) {
+          return {
+            type: "FALSE_POSITIVE",
+            currentSection: 14,
+            expectedSection: 14,
+            description: "appeared to follow the structure correctly through discovery (4-9) and education (11-13) before making a recommendation. The training persona may have incorrectly ended the call",
+          };
+        }
+
+        // Could not determine specific violation — return best-effort
         if (sortedCovered.length > 0) {
           const lastSection = sortedCovered[sortedCovered.length - 1];
           const nextExpected = lastSection + 1;
           return {
-            type: "SKIPPED_MAJOR_SECTION",
+            type: "LIKELY_FALSE_POSITIVE",
             currentSection: lastSection,
             expectedSection: nextExpected <= 20 ? nextExpected : lastSection,
-            description: `went off-structure around Section ${lastSection} (${(SECTION_DATA[lastSection] || {}).name || "Unknown"}). Sections detected: ${sortedCovered.join(", ")}`,
+            description: `covered sections ${sortedCovered.join(", ")} but the persona still hung up. No clear violation detected — this may be a false positive`,
           };
         }
 
@@ -1375,6 +1388,27 @@
         const current = SECTION_DATA[currentSection] || { name: `Section ${currentSection}`, requirement: "Unknown", scriptExcerpt: "", tip: "" };
         const expected = SECTION_DATA[expectedSection] || { name: `Section ${expectedSection}`, requirement: "Unknown", scriptExcerpt: "", tip: "" };
         const takeaway = VIOLATION_TAKEAWAYS[type] || "Follow the call structure in order and do not skip steps.";
+
+        // Handle false positive — agent did nothing wrong, persona misfired
+        if (type === "FALSE_POSITIVE" || type === "LIKELY_FALSE_POSITIVE") {
+          let html = `<div class="feedback-section">
+            <div class="feedback-label">Result</div>
+            <p class="feedback-highlight" style="color:var(--orange);">No Violation Found — Possible System Error</p>
+          </div>`;
+          html += `<div class="feedback-section">
+            <div class="feedback-label">What Happened</div>
+            <p>${escapeHtml(description)}.</p>
+          </div>`;
+          html += `<div class="feedback-section">
+            <div class="feedback-label">What This Means</div>
+            <p>${escapeHtml(takeaway)}</p>
+          </div>`;
+          html += `<div class="feedback-section">
+            <div class="feedback-label">Next Step</div>
+            <p>Review the transcript below to confirm your call was on track, then try again. This attempt will not count against your performance.</p>
+          </div>`;
+          return html;
+        }
 
         let html = "";
 
@@ -1486,14 +1520,20 @@
             const fullText = extractFullText(transcript);
             const hasGoodbye = fullText.includes("I am going to pass") || fullText.includes("going to pass");
             if (hasGoodbye) {
-              result = "violation";
               const analyzed = analyzeTranscriptForViolation(transcript);
-              if (analyzed) {
+              if (analyzed && (analyzed.type === "FALSE_POSITIVE" || analyzed.type === "LIKELY_FALSE_POSITIVE")) {
+                // Don't count false positives as violations
+                result = "incomplete";
+                sectionReached = analyzed.currentSection;
+                description = analyzed.description + " (likely false positive)";
+              } else if (analyzed) {
+                result = "violation";
                 violationType = analyzed.type;
                 sectionReached = analyzed.currentSection;
                 expectedSection = analyzed.expectedSection;
                 description = analyzed.description + " (inferred from transcript)";
               } else {
+                result = "violation";
                 description = "Structure violation detected but specific details could not be determined";
               }
             }
